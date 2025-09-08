@@ -193,25 +193,54 @@ def generate_lime_explanation(model, X, instance_idx, feature_names):
         else:
             underlying_model = model
         
-        # Create LIME explainer
+        # Ensure data is clean and has proper variance
+        X_clean = X.copy()
+        
+        # Check for and handle problematic features
+        for col in X_clean.columns:
+            # Handle constant features (zero variance)
+            if X_clean[col].std() == 0:
+                # Add small noise to constant features
+                X_clean[col] = X_clean[col] + np.random.normal(0, 1e-6, size=len(X_clean))
+            
+            # Handle features with very small variance
+            elif X_clean[col].std() < 1e-10:
+                X_clean[col] = X_clean[col] + np.random.normal(0, 1e-6, size=len(X_clean))
+            
+            # Handle infinite or very large values
+            X_clean[col] = np.clip(X_clean[col], -1e10, 1e10)
+            
+            # Replace any remaining NaN values
+            if X_clean[col].isna().any():
+                X_clean[col] = X_clean[col].fillna(X_clean[col].median())
+        
+        # Create LIME explainer with more robust parameters
         explainer = lime_tabular.LimeTabularExplainer(
-            training_data=X.values,
+            training_data=X_clean.values,
             feature_names=feature_names,
             mode='regression',
-            verbose=True,
-            random_state=42
+            verbose=False,  # Reduce verbosity to avoid warnings
+            random_state=42,
+            discretize_continuous=True,  # This can help with numerical stability
+            sample_around_instance=True  # More stable sampling
         )
         
-        # Explain instance
+        # Explain instance with error handling
         exp = explainer.explain_instance(
-            X.iloc[instance_idx].values,
+            X_clean.iloc[instance_idx].values,
             underlying_model.predict,
-            num_features=10
+            num_features=min(10, len(feature_names)),  # Ensure we don't exceed available features
+            num_samples=1000  # Reduce samples if needed for stability
         )
         
         return exp
     except Exception as e:
-        st.warning(f"LIME explanation generation failed: {e}")
+        # More specific error handling
+        if "scale parameter must be positive" in str(e) or "truncnorm" in str(e):
+            st.warning("⚠️ LIME explanation cannot be generated due to data distribution issues. This can happen when features have very low variance or numerical stability problems.")
+            st.info("💡 Try selecting a different region/time period or check if your data has sufficient variance in the features.")
+        else:
+            st.warning(f"LIME explanation generation failed: {str(e)}")
         return None
 
 def main():
@@ -425,9 +454,17 @@ def main():
                     
                     if not filtered_df.empty:
                         instance_idx = filtered_df.index[0]
+                        
+                        # Get the actual values for this instance
+                        instance_values = X.iloc[instance_idx]
+                        predicted_risk = predictions[instance_idx]
+                        
+                        # Try LIME explanation first
                         lime_exp = generate_lime_explanation(model, X, instance_idx, MODEL_FEATURES)
+                        
                         if lime_exp:
                             st.markdown(f"**📋 Feature Impact Analysis for {st.session_state.selected_region} - Q{st.session_state.selected_quarter} {st.session_state.selected_year}**")
+                            st.markdown(f"*Predicted Risk Score: {predicted_risk:.3f}*")
                             
                             exp_list = lime_exp.as_list()
                             positive_features = sorted([(f, w) for f, w in exp_list if w > 0], key=lambda item: item[1], reverse=True)
@@ -444,6 +481,42 @@ def main():
                                     st.markdown("**🟢 Risk Decreasing Factors:**")
                                     for feature, weight in negative_features:
                                         st.markdown(f'<div class="risk-decreasing"><strong>{feature}</strong><br/>Impact: <strong>{weight:.3f}</strong></div>', unsafe_allow_html=True)
+                        else:
+                            # Fallback: Show feature values and basic statistics when LIME fails
+                            st.markdown(f"**📋 Feature Values Analysis for {st.session_state.selected_region} - Q{st.session_state.selected_quarter} {st.session_state.selected_year}**")
+                            st.markdown(f"*Predicted Risk Score: {predicted_risk:.3f}*")
+                            st.info("📊 Showing feature values and comparisons with dataset averages:")
+                            
+                            # Calculate dataset statistics
+                            feature_means = X.mean()
+                            feature_stds = X.std()
+                            
+                            # Create comparison analysis
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.markdown("**📈 Above Average Features:**")
+                                above_avg_features = []
+                                for feature in MODEL_FEATURES:
+                                    if instance_values[feature] > feature_means[feature]:
+                                        deviation = (instance_values[feature] - feature_means[feature]) / feature_stds[feature]
+                                        above_avg_features.append((feature, deviation, instance_values[feature]))
+                                
+                                above_avg_features.sort(key=lambda x: x[1], reverse=True)
+                                for feature, deviation, value in above_avg_features[:5]:
+                                    st.markdown(f'<div class="risk-increasing"><strong>{feature}</strong><br/>Value: <strong>{value:.3f}</strong><br/>Std Dev above mean: <strong>+{deviation:.2f}σ</strong></div>', unsafe_allow_html=True)
+                            
+                            with col2:
+                                st.markdown("**📉 Below Average Features:**")
+                                below_avg_features = []
+                                for feature in MODEL_FEATURES:
+                                    if instance_values[feature] < feature_means[feature]:
+                                        deviation = (feature_means[feature] - instance_values[feature]) / feature_stds[feature]
+                                        below_avg_features.append((feature, deviation, instance_values[feature]))
+                                
+                                below_avg_features.sort(key=lambda x: x[1], reverse=True)
+                                for feature, deviation, value in below_avg_features[:5]:
+                                    st.markdown(f'<div class="risk-decreasing"><strong>{feature}</strong><br/>Value: <strong>{value:.3f}</strong><br/>Std Dev below mean: <strong>-{deviation:.2f}σ</strong></div>', unsafe_allow_html=True)
                     else:
                         st.warning(f"No data found for {st.session_state.selected_region} in Q{st.session_state.selected_quarter} {st.session_state.selected_year}")
                     
