@@ -26,6 +26,16 @@ st.markdown("""
     color: #1f77b4;
     text-align: center;
     margin-bottom: 2rem;
+    font-weight: 600;
+}
+.section-header {
+    font-size: 1.5rem;
+    color: #2c3e50;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    font-weight: 500;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 0.5rem;
 }
 .explanation-box {
     background-color: #f8f9fa;
@@ -33,6 +43,39 @@ st.markdown("""
     padding: 20px;
     margin: 10px 0;
     border-left: 4px solid #1f77b4;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.metric-container {
+    background-color: #ffffff;
+    padding: 1rem;
+    border-radius: 10px;
+    border: 1px solid #e1e8ed;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin: 0.5rem 0;
+}
+.feature-importance {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 10px 0;
+    border-left: 3px solid #28a745;
+}
+.feature-negative {
+    border-left-color: #dc3545;
+}
+.sidebar-header {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 1rem;
+}
+.info-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin: 1rem 0;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -169,12 +212,10 @@ def main():
         st.session_state.selected_year = None
     if 'selected_quarter' not in st.session_state:
         st.session_state.selected_quarter = None
-    if 'instance_idx_slider' not in st.session_state:
-        st.session_state.instance_idx_slider = 0
     
     # Sidebar for file upload
     with st.sidebar:
-        st.header("📁 Data Upload")
+        st.markdown('<div class="sidebar-header">📁 Data Upload</div>', unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
             "Upload CSV file with socioeconomic data",
             type=['csv'],
@@ -182,7 +223,27 @@ def main():
         )
         
         if uploaded_file:
-            st.success("File uploaded successfully!")
+            st.success("✅ File uploaded successfully!")
+            
+        st.markdown("---")
+        st.markdown('<div class="sidebar-header">📊 Model Information</div>', unsafe_allow_html=True)
+        st.markdown("""
+        **Expected Features:**
+        - Economic indicators
+        - Social indicators  
+        - Demographic data
+        - Regional identifiers
+        - Time series data
+        """)
+        
+        st.markdown("---")
+        st.markdown('<div class="sidebar-header">🔍 Analysis Features</div>', unsafe_allow_html=True)
+        st.markdown("""
+        - **SHAP Analysis**: Global feature importance
+        - **LIME Explanations**: Local interpretability
+        - **Interactive Visualizations**: Data insights
+        - **Export Results**: Download predictions
+        """)
     
     # Main content area
     if uploaded_file:
@@ -258,28 +319,40 @@ def main():
                     predictions = st.session_state.predictions
                     
                     # Display results
-                    st.subheader("📈 Prediction Results")
+                    st.markdown('<div class="section-header">📈 Prediction Results</div>', unsafe_allow_html=True)
                     
                     # Results overview
                     col1, col2, col3 = st.columns(3)
                     with col1:
+                        st.markdown('<div class="metric-container">', unsafe_allow_html=True)
                         st.metric("Average Risk Score", f"{np.mean(predictions):.3f}")
+                        st.markdown('</div>', unsafe_allow_html=True)
                     with col2:
+                        st.markdown('<div class="metric-container">', unsafe_allow_html=True)
                         st.metric("Min Risk Score", f"{np.min(predictions):.3f}")
+                        st.markdown('</div>', unsafe_allow_html=True)
                     with col3:
+                        st.markdown('<div class="metric-container">', unsafe_allow_html=True)
                         st.metric("Max Risk Score", f"{np.max(predictions):.3f}")
+                        st.markdown('</div>', unsafe_allow_html=True)
                     
                     # Display predictions with original data
-                    st.dataframe(df_with_predictions[['kabupaten_kota', 'tahun', 'kuartal', 'Risk_Score']].sort_values('Risk_Score', ascending=False))
+                    with st.expander("📊 Detailed Predictions Table", expanded=False):
+                        st.dataframe(
+                            df_with_predictions[['kabupaten_kota', 'tahun', 'kuartal', 'Risk_Score']].sort_values('Risk_Score', ascending=False),
+                            use_container_width=True
+                        )
                     
                     # XAI Section
-                    st.subheader("🔍 Explainable AI (XAI) Insights")
+                    st.markdown('<div class="section-header">🔍 Explainable AI (XAI) Insights</div>', unsafe_allow_html=True)
                     
                     # SHAP Global Explanations
-                    st.markdown("### 📊 Global Feature Importance (SHAP)")
+                    st.markdown("#### 📊 Global Feature Importance (SHAP)")
+                    st.markdown("*Understanding which features have the most impact on risk predictions across all instances*")
                     
                     # Add filter options for SHAP analysis
-                    shap_filter_col1, shap_filter_col2, shap_filter_col3 = st.columns(3)
+                    with st.expander("🔧 Filter Options for SHAP Analysis", expanded=False):
+                        shap_filter_col1, shap_filter_col2, shap_filter_col3 = st.columns(3)
                     
                     with shap_filter_col1:
                         shap_selected_region = st.selectbox(
@@ -334,20 +407,26 @@ def main():
                                 filter_info.append(f"Quarter: {shap_selected_quarter}")
                             
                             if filter_info:
-                                st.info(f"SHAP analysis filtered by: {', '.join(filter_info)} ({len(X_filtered)} instances)")
+                                st.info(f"📍 SHAP analysis filtered by: {', '.join(filter_info)} ({len(X_filtered)} instances)")
+                            else:
+                                st.info(f"📍 SHAP analysis for all data ({len(X_filtered)} instances)")
                             
-                            fig, ax = plt.subplots(figsize=(10, 8))
+                            fig, ax = plt.subplots(figsize=(12, 8))
                             shap.summary_plot(shap_values, X_filtered, show=False)
+                            plt.tight_layout()
                             st.pyplot(fig)
                             plt.close()
                     else:
                         st.warning("No data available for the selected filters")
                     
                     # LIME Local Explanations
-                    st.markdown("### 🔎 Local Explanations (LIME)")
+                    st.markdown("#### 🔎 Local Explanations (LIME)")
+                    st.markdown("*Understanding individual predictions for specific regions and time periods*")
                     
                     # Create selection dropdowns for specific region, year, and quarter
-                    col1, col2, col3 = st.columns(3)
+                    with st.container():
+                        st.markdown("**Select Instance for Detailed Analysis:**")
+                        col1, col2, col3 = st.columns(3)
                     
                     with col1:
                         # Set default region if not set
@@ -401,76 +480,147 @@ def main():
                         lime_exp = generate_lime_explanation(model, X, instance_idx, MODEL_FEATURES)
                         if lime_exp:
                             # Display LIME explanation
-                            st.markdown(f"**Explanation for {selected_region} - Q{selected_quarter} {selected_year}**")
+                            st.markdown("**📋 Feature Impact Analysis**")
+                            st.markdown(f"*Analysis for {selected_region} - Q{selected_quarter} {selected_year}*")
                             
-                            # Show explanation as list
+                            # Create a more professional display for LIME results
                             exp_list = lime_exp.as_list()
-                            for feature, weight in exp_list:
-                                color = "red" if weight > 0 else "green"  # Red for increasing risk, green for decreasing risk
-                                st.markdown(f"<span style='color:{color}'>{feature}: {weight:.3f}</span>", unsafe_allow_html=True)
+                            
+                            # Separate positive and negative contributions
+                            positive_features = [(f, w) for f, w in exp_list if w > 0]
+                            negative_features = [(f, w) for f, w in exp_list if w < 0]
+                            
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                if positive_features:
+                                    st.markdown("**🔴 Risk Increasing Factors:**")
+                                    for feature, weight in positive_features:
+                                        st.markdown(f'<div class="feature-importance">{feature}: <strong>+{weight:.3f}</strong></div>', unsafe_allow_html=True)
+                            
+                            with col2:
+                                if negative_features:
+                                    st.markdown("**🟢 Risk Decreasing Factors:**")
+                                    for feature, weight in negative_features:
+                                        st.markdown(f'<div class="feature-importance feature-negative">{feature}: <strong>{weight:.3f}</strong></div>', unsafe_allow_html=True)
                     else:
                         st.warning(f"No data found for {selected_region} in Q{selected_quarter} {selected_year}")
                     
-                    # Keep the original slider for manual instance selection
-                    st.markdown("---")
-                    st.markdown("**Manual Instance Selection**")
-                    instance_idx_slider = st.slider("Select instance by index", 0, len(X)-1, st.session_state.instance_idx_slider, key="instance_slider")
-                    st.session_state.instance_idx_slider = instance_idx_slider
-                    
-                    lime_exp_slider = generate_lime_explanation(model, X, instance_idx_slider, MODEL_FEATURES)
-                    if lime_exp_slider:
-                        # Display LIME explanation for slider selection
-                        st.markdown(f"**Explanation for Instance {instance_idx_slider}: {df_with_predictions.iloc[instance_idx_slider]['kabupaten_kota']} - Q{df_with_predictions.iloc[instance_idx_slider]['kuartal']} {df_with_predictions.iloc[instance_idx_slider]['tahun']}**")
-                        
-                        # Show explanation as list
-                        exp_list_slider = lime_exp_slider.as_list()
-                        for feature, weight in exp_list_slider:
-                            color = "red" if weight > 0 else "green"  # Red for increasing risk, green for decreasing risk
-                            st.markdown(f"<span style='color:{color}'>{feature}: {weight:.3f}</span>", unsafe_allow_html=True)
-                    
                     # Feature distributions
-                    st.markdown("### 📈 Feature Distributions")
-                    selected_feature = st.selectbox("Select feature to visualize", MODEL_FEATURES[1:6])  # First few numeric features
+                    st.markdown("#### 📈 Feature Distribution Analysis")
+                    st.markdown("*Explore the distribution of key socioeconomic indicators*")
                     
-                    if selected_feature in X.columns:
-                        fig, ax = plt.subplots(figsize=(10, 6))
-                        sns.histplot(X[selected_feature], kde=True, ax=ax)
-                        ax.set_title(f"Distribution of {selected_feature}")
-                        st.pyplot(fig)
-                        plt.close()
+                    col1, col2 = st.columns([2, 1])
+                    with col2:
+                        selected_feature = st.selectbox(
+                            "Select feature to visualize:", 
+                            MODEL_FEATURES, 
+                            help="Choose a feature to see its distribution across all data points"
+                        )
+                    
+                    with col1:
+                        if selected_feature in X.columns:
+                            fig, ax = plt.subplots(figsize=(10, 6))
+                            sns.histplot(X[selected_feature], kde=True, ax=ax, color='#3498db', alpha=0.7)
+                            ax.set_title(f"Distribution of {selected_feature}", fontsize=14, fontweight='bold')
+                            ax.set_xlabel(selected_feature, fontsize=12)
+                            ax.set_ylabel("Frequency", fontsize=12)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                            plt.close()
                     
                     # Download results
-                    st.markdown("### 💾 Download Results")
+                    st.markdown('<div class="section-header">💾 Export Results</div>', unsafe_allow_html=True)
                     csv = df_with_predictions.to_csv(index=False)
-                    st.download_button(
-                        label="Download predictions with explanations",
-                        data=csv,
-                        file_name="risk_predictions_with_explanations.csv",
-                        mime="text/csv"
-                    )
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        st.download_button(
+                            label="📥 Download Complete Results with Predictions",
+                            data=csv,
+                            file_name="socioeconomic_risk_predictions.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
     else:
         # Welcome message and instructions
-        st.info("👋 Welcome to the Socioeconomic Risk Predictor!")
-        st.write("""
-        ### How to use this app:
-        1. **Upload a CSV file** with socioeconomic data using the sidebar
-        2. Ensure your data includes the following columns:
-           - Regional identifiers: `kabupaten_kota`, `nama_kabupaten_kota`
-           - Economic indicators: `PDRB`, `Upah Minimum`, `investasi_per_kapita`
-           - Social indicators: `Indeks_Pembangunan_Manusia`, `Persen_Penduduk_Miskin`
-           - Demographic data: `Jumlah Penduduk`, `Laju Pertumbuhan Penduduk`
-           - Time data: `tahun`, `kuartal`
+        st.markdown('<div class="info-card">', unsafe_allow_html=True)
+        st.markdown("### 👋 Welcome to the Socioeconomic Risk Predictor!")
+        st.markdown("*Advanced machine learning analytics for socioeconomic risk assessment*")
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        3. Click **"Make Predictions"** to generate risk scores
-        4. Explore **Explainable AI (XAI)** insights to understand model decisions
+        col1, col2 = st.columns([2, 1])
         
-        ### Features included:
-        - 📊 **Risk prediction** using pre-trained machine learning model
-        - 🔍 **SHAP explanations** for global feature importance
-        - 🔎 **LIME explanations** for individual predictions
-        - 📈 **Interactive visualizations** of results
-        - 💾 **Download capability** for results and explanations
-        """)
+        with col1:
+            st.markdown("### 🚀 Getting Started")
+            st.markdown("""
+            **Follow these simple steps to analyze your data:**
+            
+            1. **📤 Upload Data**: Use the sidebar to upload your CSV file with socioeconomic indicators
+            2. **⚡ Generate Predictions**: Click the prediction button to run the AI model
+            3. **🔍 Explore Insights**: Analyze results with interactive explanations
+            4. **📊 Download Results**: Export your findings for further analysis
+            """)
+            
+            st.markdown("### 📋 Required Data Structure")
+            st.markdown("""
+            Your CSV file should include these key components:
+            
+            **🏛️ Regional Data:**
+            - `kabupaten_kota` - Region identifiers
+            - `nama_kabupaten_kota` - Region names
+            
+            **💰 Economic Indicators:**
+            - `PDRB` - Gross Regional Domestic Product
+            - `Upah Minimum` - Minimum wage
+            - `investasi_per_kapita` - Investment per capita
+            - `Laju_Inflasi` - Inflation rate
+            
+            **👥 Social Indicators:**
+            - `Indeks_Pembangunan_Manusia` - Human Development Index
+            - `Persen_Penduduk_Miskin` - Poverty percentage
+            - `Tingkat Pengangguran Terbuka` - Unemployment rate
+            
+            **📈 Demographic Data:**
+            - `Jumlah Penduduk` - Population count
+            - `Laju Pertumbuhan Penduduk` - Population growth rate
+            - `Kepadatan Penduduk` - Population density
+            
+            **📅 Time Series:**
+            - `tahun` - Year
+            - `kuartal` - Quarter
+            """)
+        
+        with col2:
+            st.markdown("### 🔬 AI Model Features")
+            st.info("""
+            **🎯 Prediction Capabilities:**
+            - Risk score calculation
+            - Multi-factor analysis
+            - Time series patterns
+            
+            **🔍 Explainable AI:**
+            - SHAP global importance
+            - LIME local explanations
+            - Feature impact analysis
+            
+            **📊 Visualizations:**
+            - Interactive charts
+            - Distribution plots
+            - Trend analysis
+            
+            **💾 Export Options:**
+            - Complete results
+            - Detailed predictions
+            - Analysis reports
+            """)
+            
+            st.markdown("### � Support")
+            st.markdown("""
+            Need help? Check our documentation or contact support for:
+            - Data formatting assistance
+            - Model interpretation
+            - Technical troubleshooting
+            """)
 
 if __name__ == "__main__":
     main()
