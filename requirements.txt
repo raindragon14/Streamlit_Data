@@ -1,4 +1,6 @@
 streamlit
+openai
+google-generativeai
 pandas
 numpy
 scikit-learn
