@@ -12,8 +12,8 @@ warnings.filterwarnings('ignore')
 
 # Set page config
 st.set_page_config(
-    page_title="Socioeconomic Risk Predictor",
-    page_icon="📊",
+    page_title="Sistem Peringatan Dini Risiko UMKM berbasis XAI",
+    page_icon="🚨",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -191,7 +191,7 @@ def generate_lime_explanation(model, X, instance_idx, feature_names):
         return None
 
 def main():
-    st.markdown('<div class="main-header">📊 Socioeconomic Risk Predictor with XAI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">🚨 Sistem Peringatan Dini Risiko UMKM berbasis XAI</div>', unsafe_allow_html=True)
     
     # Load model
     model = load_model()
