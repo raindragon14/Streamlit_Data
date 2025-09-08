@@ -102,33 +102,76 @@ def validate_csv(uploaded_file):
         return None
 
 def generate_shap_explanations(model, X, feature_names):
+    """Generate SHAP explanations for the model"""
     try:
+        # Create explainer
         explainer = shap.Explainer(model.named_steps['xgb_model'] if hasattr(model, 'named_steps') else model)
+        
+        # Get SHAP values
         shap_values = explainer(X)
+        
         return shap_values
     except Exception as e:
         st.warning(f"SHAP explanation generation failed: {e}")
         return None
 
 def generate_lime_explanation(model, X, instance_idx, feature_names):
+    """Generate LIME explanation for a specific instance"""
     try:
-        underlying_model = model.named_steps['xgb_model'] if hasattr(model, 'named_steps') else model
+        # Get the underlying model from pipeline if needed
+        if hasattr(model, 'named_steps'):
+            underlying_model = model.named_steps['xgb_model']
+        else:
+            underlying_model = model
+        
+        # Ensure data is clean and has proper variance
         X_clean = X.copy()
+        
+        # Check for and handle problematic features
         for col in X_clean.columns:
-            if X_clean[col].std() < 1e-9:
-                X_clean[col] += np.random.normal(0, 1e-6, size=len(X_clean))
-            X_clean[col] = np.clip(X_clean[col].fillna(X_clean[col].median()), -1e10, 1e10)
+            # Handle constant features (zero variance)
+            if X_clean[col].std() == 0:
+                # Add small noise to constant features
+                X_clean[col] = X_clean[col] + np.random.normal(0, 1e-6, size=len(X_clean))
+            
+            # Handle features with very small variance
+            elif X_clean[col].std() < 1e-10:
+                X_clean[col] = X_clean[col] + np.random.normal(0, 1e-6, size=len(X_clean))
+            
+            # Handle infinite or very large values
+            X_clean[col] = np.clip(X_clean[col], -1e10, 1e10)
+            
+            # Replace any remaining NaN values
+            if X_clean[col].isna().any():
+                X_clean[col] = X_clean[col].fillna(X_clean[col].median())
+        
+        # Create LIME explainer with more robust parameters
         explainer = lime_tabular.LimeTabularExplainer(
-            training_data=X_clean.values, feature_names=feature_names, mode='regression',
-            random_state=42, discretize_continuous=True, sample_around_instance=True
+            training_data=X_clean.values,
+            feature_names=feature_names,
+            mode='regression',
+            verbose=False,  # Reduce verbosity to avoid warnings
+            random_state=42,
+            discretize_continuous=True,  # This can help with numerical stability
+            sample_around_instance=True  # More stable sampling
         )
+        
+        # Explain instance with error handling
         exp = explainer.explain_instance(
-            X_clean.iloc[instance_idx].values, underlying_model.predict,
-            num_features=min(10, len(feature_names))
+            X_clean.iloc[instance_idx].values,
+            underlying_model.predict,
+            num_features=min(10, len(feature_names)),  # Ensure we don't exceed available features
+            num_samples=1000  # Reduce samples if needed for stability
         )
+        
         return exp
     except Exception as e:
-        st.warning(f"⚠️ LIME explanation cannot be generated due to data distribution issues. {e}")
+        # More specific error handling
+        if "scale parameter must be positive" in str(e) or "truncnorm" in str(e):
+            st.warning("⚠️ LIME explanation cannot be generated due to data distribution issues. This can happen when features have very low variance or numerical stability problems.")
+            st.info("💡 Try selecting a different region/time period or check if your data has sufficient variance in the features.")
+        else:
+            st.warning(f"LIME explanation generation failed: {str(e)}")
         return None
 
 # --- TAMBAHAN: Fungsi untuk memanggil DeepSeek API ---
@@ -199,9 +242,18 @@ def main():
         return
 
     # Inisialisasi session state (tidak ada perubahan)
-    if 'selected_region' not in st.session_state: st.session_state.selected_region = None
-    if 'selected_year' not in st.session_state: st.session_state.selected_year = None
-    if 'selected_quarter' not in st.session_state: st.session_state.selected_quarter = None
+    if 'shap_selected_region' not in st.session_state:
+        st.session_state.shap_selected_region = "All"
+    if 'shap_selected_year' not in st.session_state:
+        st.session_state.shap_selected_year = "All"
+    if 'shap_selected_quarter' not in st.session_state:
+        st.session_state.shap_selected_quarter = "All"
+    if 'selected_region' not in st.session_state:
+        st.session_state.selected_region = None
+    if 'selected_year' not in st.session_state:
+        st.session_state.selected_year = None
+    if 'selected_quarter' not in st.session_state:
+        st.session_state.selected_quarter = None
 
     with st.sidebar:
         st.markdown('<div class="sidebar-header">📁 Data Upload</div>', unsafe_allow_html=True)
