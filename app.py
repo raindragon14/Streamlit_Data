@@ -44,7 +44,7 @@ MODEL_FEATURES = [
     'Laju Pertumbuhan Penduduk per Tahun', 'Persentase Penduduk',
     'Kepadatan Penduduk per km persegi (Km2)', 'Rasio Jenis Kelamin Penduduk',
     'PDRB', 'Laju_Inflasi', 'Gini_Ratio', 'investasi_per_kapita',
-    'Jumlah Perusahaan Kecil'
+    'Jumlah Perusahaan Kecil', 'Jumlah Perusahaan'
 ]
 
 # Full expected columns in the original data (for validation)
