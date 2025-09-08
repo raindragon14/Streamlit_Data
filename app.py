@@ -44,12 +44,12 @@ MODEL_FEATURES = [
     'Laju Pertumbuhan Penduduk per Tahun', 'Persentase Penduduk',
     'Kepadatan Penduduk per km persegi (Km2)', 'Rasio Jenis Kelamin Penduduk',
     'PDRB', 'Laju_Inflasi', 'Gini_Ratio', 'investasi_per_kapita',
-    'Jumlah Perusahaan Kecil', 'Jumlah Perusahaan'
+    'Jumlah Perusahaan Kecil'
 ]
 
 # Full expected columns in the original data (for validation)
 FULL_EXPECTED_COLUMNS = MODEL_FEATURES + [
-    'kabupaten_kota', 'tahun', 'kuartal', 'Proksi Inflasi', 'nama_kabupaten_kota'
+    'kabupaten_kota', 'tahun', 'kuartal', 'Proksi Inflasi'
 ]
 
 def load_model():
