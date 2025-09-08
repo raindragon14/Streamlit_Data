@@ -59,9 +59,15 @@ st.markdown("""
     border-radius: 8px;
     margin: 10px 0;
     border-left: 3px solid #28a745;
+    color: #2c3e50;
+    font-weight: 500;
 }
 .feature-negative {
     border-left-color: #dc3545;
+    background-color: #fdf2f2;
+}
+.feature-positive {
+    background-color: #f0f9f4;
 }
 .sidebar-header {
     font-size: 1.2rem;
@@ -76,6 +82,24 @@ st.markdown("""
     border-radius: 10px;
     margin: 1rem 0;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.risk-increasing {
+    background-color: #fdf2f2;
+    border: 1px solid #fecaca;
+    border-left: 4px solid #dc3545;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 6px;
+    color: #721c24;
+}
+.risk-decreasing {
+    background-color: #f0f9f4;
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #28a745;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 6px;
+    color: #14532d;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -414,12 +438,12 @@ def main():
                                 if positive_features:
                                     st.markdown("**🔴 Risk Increasing Factors:**")
                                     for feature, weight in positive_features:
-                                        st.markdown(f'<div class="feature-importance feature-negative">{feature}: <strong>+{weight:.3f}</strong></div>', unsafe_allow_html=True)
+                                        st.markdown(f'<div class="risk-increasing"><strong>{feature}</strong><br/>Impact: <strong>+{weight:.3f}</strong></div>', unsafe_allow_html=True)
                             with col2:
                                 if negative_features:
                                     st.markdown("**🟢 Risk Decreasing Factors:**")
                                     for feature, weight in negative_features:
-                                        st.markdown(f'<div class="feature-importance">{feature}: <strong>{weight:.3f}</strong></div>', unsafe_allow_html=True)
+                                        st.markdown(f'<div class="risk-decreasing"><strong>{feature}</strong><br/>Impact: <strong>{weight:.3f}</strong></div>', unsafe_allow_html=True)
                     else:
                         st.warning(f"No data found for {st.session_state.selected_region} in Q{st.session_state.selected_quarter} {st.session_state.selected_year}")
                     
