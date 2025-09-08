@@ -6,4 +6,5 @@ shap
 matplotlib
 seaborn
 joblib
+xgboost
 lime
