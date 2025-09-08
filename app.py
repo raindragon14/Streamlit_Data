@@ -112,15 +112,31 @@ def validate_csv(uploaded_file):
 def generate_shap_explanations(model, X, feature_names):
     """Generate SHAP explanations for the model"""
     try:
-        # Create explainer
-        explainer = shap.Explainer(model.named_steps['xgb_model'] if hasattr(model, 'named_steps') else model)
+        # Create explainer with better error handling
+        if hasattr(model, 'named_steps'):
+            # Pipeline model
+            underlying_model = model.named_steps['xgb_model']
+        else:
+            underlying_model = model
         
-        # Get SHAP values
+        # Try different explainer types based on model type
+        try:
+            # For tree-based models, use TreeExplainer (more efficient)
+            if hasattr(underlying_model, 'get_booster') or 'XGB' in str(type(underlying_model)):
+                explainer = shap.TreeExplainer(underlying_model)
+            else:
+                explainer = shap.Explainer(underlying_model)
+        except Exception:
+            # Fallback to general Explainer
+            explainer = shap.Explainer(underlying_model)
+        
+        # Get SHAP values with error handling
         shap_values = explainer(X)
         
         return shap_values
     except Exception as e:
         st.warning(f"SHAP explanation generation failed: {e}")
+        st.info("💡 Tip: Pastikan model kompatibel dengan SHAP dan data tidak memiliki nilai yang bermasalah.")
         return None
 
 def generate_lime_explanation(model, X, instance_idx, feature_names):
@@ -372,7 +388,12 @@ def main():
                     # Global feature importance
                     try:
                         # Calculate mean absolute SHAP values for global importance
-                        mean_abs_shap = np.abs(shap_values.values).mean(0)
+                        if hasattr(shap_values, 'values'):
+                            shap_values_array = shap_values.values
+                        else:
+                            shap_values_array = shap_values
+                            
+                        mean_abs_shap = np.abs(shap_values_array).mean(0)
                         feature_importance_df = pd.DataFrame({
                             'Feature': MODEL_FEATURES,
                             'Importance': mean_abs_shap
@@ -391,8 +412,9 @@ def main():
                             ax.grid(axis='x', alpha=0.3)
                             
                             # Color bars based on importance
+                            max_importance = feature_importance_df['Importance'].max()
                             for i, bar in enumerate(bars):
-                                bar.set_color(plt.cm.viridis(feature_importance_df.iloc[i]['Importance'] / feature_importance_df['Importance'].max()))
+                                bar.set_color(plt.cm.viridis(feature_importance_df.iloc[i]['Importance'] / max_importance))
                             
                             plt.tight_layout()
                             st.pyplot(fig)
@@ -448,15 +470,54 @@ def main():
                             # Summary plot for filtered data
                             if len(shap_filter_indices) > 1:
                                 st.markdown("**📈 SHAP Summary Plot (Data Terfilter):**")
-                                fig, ax = plt.subplots(figsize=(10, 8))
-                                shap_subset = shap_values[shap_filter_indices]
-                                shap.summary_plot(shap_subset, X.iloc[shap_filter_indices], 
-                                                feature_names=MODEL_FEATURES, show=False, ax=ax)
-                                st.pyplot(fig)
-                                plt.close()
+                                try:
+                                    # Try to create SHAP summary plot
+                                    shap_subset = shap_values[shap_filter_indices]
+                                    shap.summary_plot(shap_subset, X.iloc[shap_filter_indices], 
+                                                    feature_names=MODEL_FEATURES, show=False)
+                                    st.pyplot(plt.gcf())
+                                    plt.close()
+                                except Exception as e:
+                                    st.warning(f"SHAP summary plot tidak dapat dibuat: {e}")
+                                    st.info("Menampilkan visualisasi alternatif...")
+                                    
+                                    # Alternative visualization: Feature importance bar plot
+                                    if hasattr(shap_values, 'values'):
+                                        filtered_shap_values = shap_values.values[shap_filter_indices]
+                                    else:
+                                        filtered_shap_values = shap_values[shap_filter_indices]
+                                    
+                                    mean_abs_shap_filtered = np.abs(filtered_shap_values).mean(0)
+                                    
+                                    fig, ax = plt.subplots(figsize=(10, 8))
+                                    feature_importance_filtered = pd.DataFrame({
+                                        'Feature': MODEL_FEATURES,
+                                        'Importance': mean_abs_shap_filtered
+                                    }).sort_values('Importance', ascending=True)
+                                    
+                                    bars = ax.barh(range(len(feature_importance_filtered)), 
+                                                 feature_importance_filtered['Importance'])
+                                    ax.set_yticks(range(len(feature_importance_filtered)))
+                                    ax.set_yticklabels(feature_importance_filtered['Feature'])
+                                    ax.set_xlabel('Mean |SHAP value| (Filtered Data)')
+                                    ax.set_title('Feature Importance for Filtered Data')
+                                    ax.grid(axis='x', alpha=0.3)
+                                    
+                                    # Color bars
+                                    max_importance = feature_importance_filtered['Importance'].max()
+                                    for i, bar in enumerate(bars):
+                                        bar.set_color(plt.cm.viridis(feature_importance_filtered.iloc[i]['Importance'] / max_importance))
+                                    
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+                                    plt.close()
                             
                             # Calculate average SHAP values for filtered data
-                            filtered_shap_values = shap_values.values[shap_filter_indices]
+                            if hasattr(shap_values, 'values'):
+                                filtered_shap_values = shap_values.values[shap_filter_indices]
+                            else:
+                                filtered_shap_values = shap_values[shap_filter_indices]
+                            
                             avg_shap = np.mean(filtered_shap_values, axis=0)
                             
                             # Store filtered SHAP analysis for AI
