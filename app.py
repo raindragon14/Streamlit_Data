@@ -223,7 +223,7 @@ def generate_narrative_explanation(client, region, year, quarter, risk_score, po
     
     prompt_content = f"""
     Anda adalah seorang analis ekonomi dan konsultan Usaha Kecil ahli yang ditugaskan untuk menjelaskan prediksi risiko kegagalan usaha kecil untuk seorang kepala daerah, pembuat kebijakan, atau lembaga pemberdayaan Usaha Kecil.
-
+    Catatan : "Persentase Penduduk" adalah (jumlah penduduk di wilayah itu)/jumlah penduduk Jawa Timur lalu dikalikan dengan 100%
     **Konteks Analisis:**
     - **Wilayah:** {region}
     - **Periode:** Kuartal {quarter}, Tahun {year}
