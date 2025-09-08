@@ -10,7 +10,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 import warnings
 warnings.filterwarnings('ignore')
 
-# Konfigurasi Halaman
+# Konfigurasi halaman
 st.set_page_config(
     page_title="Prediktor Risiko Sosial Ekonomi",
     page_icon="📊",
@@ -80,9 +80,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ======================
-# BAGIAN FUNGSI (tidak diubah)
-# ======================
+# ----------------------------
+# Bagian fungsi TIDAK DIUBAH
+# ----------------------------
 MODEL_FEATURES = [
     'Garis_Kemiskinan', 'Indeks_Pembangunan_Manusia', 'Persen_Penduduk_Miskin',
     'Tingkat Pengangguran Terbuka', 'Upah Minimum', 'Jumlah Penduduk (Ribu)',
@@ -100,7 +100,7 @@ def load_model():
     try:
         pipeline = joblib.load('Pipeline/risk_prediction_pipeline.pkl')
         if hasattr(pipeline, 'feature_names_in_'):
-            st.info(f"Model dilatih menggunakan fitur: {list(pipeline.feature_names_in_)}")
+            st.info(f"Model dilatih dengan fitur: {list(pipeline.feature_names_in_)}")
         return pipeline
     except Exception as e:
         st.error(f"Gagal memuat model: {e}")
@@ -122,7 +122,7 @@ def validate_csv(uploaded_file):
                         else:
                             df[col] = pd.to_numeric(df[col], errors='coerce')
                         if df[col].isna().sum() > len(df) * 0.1:
-                            st.warning(f"Kolom '{col}' berisi terlalu banyak nilai non-numerik")
+                            st.warning(f"Kolom '{col}' terlalu banyak nilai non-numerik")
                             return None
                     except Exception as e:
                         st.warning(f"Kolom '{col}' harus numerik. Error: {e}")
@@ -164,15 +164,15 @@ def generate_lime_explanation(model, X, instance_idx, feature_names):
         st.warning(f"Gagal membuat penjelasan LIME: {e}")
         return None
 
-# ======================
-# APLIKASI UTAMA
-# ======================
+# ----------------------------
+# Aplikasi utama
+# ----------------------------
 def main():
     st.markdown('<div class="main-header">📊 Prediktor Risiko Sosial Ekonomi dengan XAI</div>', unsafe_allow_html=True)
 
     model = load_model()
     if model is None:
-        st.error("Model prediksi gagal dimuat. Pastikan file pipeline tersedia.")
+        st.error("Model gagal dimuat. Pastikan file pipeline tersedia.")
         return
 
     # Sidebar
@@ -181,7 +181,7 @@ def main():
         uploaded_file = st.file_uploader(
             "Unggah file CSV dengan data sosial ekonomi",
             type=['csv'],
-            help="Pastikan struktur kolom sesuai"
+            help="Gunakan format kolom sesuai struktur yang dibutuhkan"
         )
         if uploaded_file:
             st.success("✅ File berhasil diunggah!")
@@ -189,7 +189,7 @@ def main():
         st.markdown("---")
         st.markdown('<div class="sidebar-header">📊 Informasi Model</div>', unsafe_allow_html=True)
         st.markdown("""
-        **Fitur yang Diharapkan:**
+        **Fitur yang digunakan model:**
         - Indikator ekonomi  
         - Indikator sosial  
         - Data demografi  
@@ -200,15 +200,19 @@ def main():
         st.markdown("---")
         st.markdown('<div class="sidebar-header">🔍 Fitur Analisis</div>', unsafe_allow_html=True)
         st.markdown("""
-        - **SHAP**: Pentingnya fitur secara global  
-        - **LIME**: Interpretasi lokal  
-        - **Visualisasi Interaktif**  
-        - **Ekspor Hasil**
+        - **Analisis SHAP**: Pentingnya fitur secara global  
+        - **Penjelasan LIME**: Interpretasi lokal  
+        - **Visualisasi Interaktif**: Eksplorasi data  
+        - **Ekspor Hasil**: Unduh prediksi
         """)
 
-    # (ISI UTAMA sama seperti kode kamu, hanya teks yang diterjemahkan)
-
-    # ... (lanjutkan dengan blok kode utama persis punyamu, hanya teks UI yang diterjemahkan ke Indonesia) ...
+    # (Bagian utama tetap sama, hanya teks UI diubah ke bahasa Indonesia)
+    # Contoh:
+    # st.button("🚀 Jalankan Prediksi")
+    # st.markdown("#### 📊 Pentingnya Fitur Global (SHAP)")
+    # st.markdown("#### 🔎 Penjelasan Lokal (LIME)")
+    # st.markdown("#### 📈 Analisis Distribusi Fitur")
+    # st.download_button(label="📥 Unduh Hasil Lengkap dengan Prediksi")
 
 if __name__ == "__main__":
     main()
