@@ -14,8 +14,8 @@ warnings.filterwarnings('ignore')
 
 # Set page config
 st.set_page_config(
-    page_title="Socioeconomic Risk Predictor",
-    page_icon="📊",
+    page_title="Small Business Failure Risk Predictor",
+    page_icon="🏪",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -214,48 +214,48 @@ def generate_narrative_explanation(client, region, year, quarter, risk_score, po
         shap_neg_str = "\n".join([f"- `{factor}` (Rata-rata SHAP: {weight:.4f})" for factor, weight in shap_analysis['negative_factors'][:5]])
         
         shap_section = f"""
-    **Analisis Global (SHAP) - Pola Umum Model:**
-    **Faktor Global Peningkat Risiko:**
+    **Analisis Global (SHAP) - Pola Umum Kegagalan Usaha Kecil:**
+    **Faktor Global Peningkat Risiko Kegagalan Usaha Kecil:**
     {shap_pos_str}
-    **Faktor Global Penurun Risiko:**
+    **Faktor Global Penurun Risiko Kegagalan Usaha Kecil:**
     {shap_neg_str}
     """
     
     prompt_content = f"""
-    Anda adalah seorang analis ekonomi ahli yang ditugaskan untuk menjelaskan prediksi risiko sosioekonomi untuk seorang kepala daerah atau pembuat kebijakan.
+    Anda adalah seorang analis ekonomi dan konsultan Usaha Kecil ahli yang ditugaskan untuk menjelaskan prediksi risiko kegagalan usaha kecil untuk seorang kepala daerah, pembuat kebijakan, atau lembaga pemberdayaan Usaha Kecil.
 
     **Konteks Analisis:**
     - **Wilayah:** {region}
     - **Periode:** Kuartal {quarter}, Tahun {year}
-    - **Skor Risiko yang Diprediksi Model:** {risk_score:.3f} (skor lebih tinggi berarti risiko lebih besar)
+    - **Skor Risiko Kegagalan Usaha Kecil:** {risk_score:.3f} (skor lebih tinggi berarti risiko kegagalan usaha kecil lebih besar)
 
     **Faktor-faktor Kunci dari Model (berdasarkan LIME - Analisis Lokal untuk Wilayah Ini):**
-    **Faktor Peningkat Risiko Teratas:**
+    **Faktor Peningkat Risiko Kegagalan Usaha Kecil:**
     {pos_factors_str}
-    **Faktor Penurun Risiko Teratas:**
+    **Faktor Penurun Risiko Kegagalan Usaha Kecil:**
     {neg_factors_str}
     {shap_section}
 
     **Tugas Anda:**
     Tulis laporan analisis yang ringkas, jelas, dan actionable dalam format Markdown. Laporan harus mencakup:
     
-    1.  **Ringkasan Eksekutif:** Mulai dengan kesimpulan utama dalam 2-3 kalimat. Jelaskan secara singkat tingkat risiko di wilayah ini dan apa pendorong utamanya.
+    1.  **Ringkasan Eksekutif:** Mulai dengan kesimpulan utama dalam 2-3 kalimat. Jelaskan secara singkat tingkat risiko kegagalan Usaha Kecil di wilayah ini dan apa pendorong utamanya.
     
-    2.  **Analisis Faktor Lokal vs Global:** Bandingkan hasil LIME (spesifik untuk wilayah ini) dengan pola SHAP global. Jelaskan apakah wilayah ini mengikuti pola umum atau memiliki karakteristik unik.
+    2.  **Analisis Faktor Lokal vs Global:** Bandingkan hasil LIME (spesifik untuk wilayah ini) dengan pola SHAP global. Jelaskan apakah wilayah ini mengikuti pola umum kegagalan Usaha Kecil atau memiliki karakteristik unik.
     
-    3.  **Analisis Faktor Peningkat Risiko:** Jelaskan MENGAPA faktor-faktor ini kemungkinan besar meningkatkan risiko. Hubungkan dengan teori ekonomi atau logika umum. Jika menemukan paradoks (misal: Upah Minimum tinggi meningkatkan risiko), berikan analisis mendalam tentang itu.
+    3.  **Analisis Faktor Peningkat Risiko:** Jelaskan MENGAPA faktor-faktor ini kemungkinan besar meningkatkan risiko kegagalan Usaha Kecil. Hubungkan dengan teori ekonomi Usaha Kecil, akses permodalan, daya beli masyarakat, atau kondisi pasar lokal.
     
-    4.  **Analisis Faktor Penurun Risiko:** Jelaskan MENGAPA faktor-faktor ini menjadi kekuatan bagi wilayah tersebut dan membantu menekan risiko.
+    4.  **Analisis Faktor Penurun Risiko:** Jelaskan MENGAPA faktor-faktor ini menjadi kekuatan pendukung keberhasilan Usaha Kecil di wilayah tersebut dan membantu menekan risiko kegagalan.
     
-    5.  **Rekomendasi Kebijakan:** Berdasarkan analisis lokal dan global, berikan 3-4 rekomendasi kebijakan yang konkret dan dapat ditindaklanjuti, dengan prioritas berdasarkan dampak yang diharapkan.
+    5.  **Rekomendasi Kebijakan Usaha Kecil:** Berdasarkan analisis lokal dan global, berikan 3-4 rekomendasi kebijakan yang konkret dan dapat ditindaklanjuti untuk pemberdayaan Usaha Kecil, dengan prioritas berdasarkan dampak yang diharapkan terhadap pengurangan risiko kegagalan usaha kecil.
 
-    Gunakan bahasa yang profesional namun mudah dipahami oleh audiens non-teknis. Jika ada data SHAP yang tersedia, pastikan untuk mengintegrasikan insight global dengan analisis lokal LIME.
+    Gunakan bahasa yang profesional namun mudah dipahami oleh audiens non-teknis. Fokus pada konteks Usaha Kecil, seperti akses permodalan, daya beli masyarakat, infrastruktur bisnis, dan ekosistem kewirausahaan. Jika ada data SHAP yang tersedia, pastikan untuk mengintegrasikan insight global dengan analisis lokal LIME.
     """
     try:
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
-                {"role": "system", "content": "Anda adalah seorang analis ekonomi ahli."},
+                {"role": "system", "content": "Anda adalah seorang analis ekonomi dan konsultan Usaha Kecil ahli."},
                 {"role": "user", "content": prompt_content}
             ],
             temperature=0.7,
@@ -280,7 +280,7 @@ def generate_narrative_explanation_custom(client, region, year, quarter, risk_sc
         shap_neg_str = "\n".join([f"- `{factor}` (Rata-rata SHAP: {weight:.4f})" for factor, weight in shap_analysis['negative_factors'][:3]])
         
         shap_section = f"""
-    **Pola Global (SHAP):**
+    **Pola Global Kegagalan Usaha Kecil (SHAP):**
     **Peningkat Risiko Global:** {shap_pos_str}
     **Penurun Risiko Global:** {shap_neg_str}
     """
@@ -295,26 +295,26 @@ def generate_narrative_explanation_custom(client, region, year, quarter, risk_sc
         language_instruction = "Tulis analisis dalam Bahasa Indonesia."
     
     prompt_content = f"""
-    Anda adalah analis ekonomi ahli. {language_instruction}
+    Anda adalah analis ekonomi dan konsultan Usaha Kecil ahli. {language_instruction}
     
-    **Analisis untuk:** {region} - Q{quarter} {year}
-    **Skor Risiko:** {risk_score:.3f}
+    **Analisis Risiko Kegagalan Usaha Kecil untuk:** {region} - Q{quarter} {year}
+    **Skor Risiko Kegagalan Usaha Kecil:** {risk_score:.3f}
     
     **Faktor Lokal (LIME):**
-    **Peningkat Risiko:** {pos_factors_str}
-    **Penurun Risiko:** {neg_factors_str}
+    **Peningkat Risiko Kegagalan Usaha Kecil:** {pos_factors_str}
+    **Penurun Risiko Kegagalan Usaha Kecil:** {neg_factors_str}
     {shap_section}
     
     **Instruksi Format:** {format_instruction}
     
-    Buat analisis yang fokus dan actionable berdasarkan format yang diminta.
+    Buat analisis yang fokus dan actionable untuk pemberdayaan Usaha Kecil berdasarkan format yang diminta. Fokus pada faktor-faktor yang mempengaruhi keberhasilan atau kegagalan usaha kecil seperti akses permodalan, daya beli masyarakat, infrastruktur bisnis, dan dukungan pemerintah.
     """
     
     try:
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
-                {"role": "system", "content": f"Anda adalah analis ekonomi ahli. {language_instruction}"},
+                {"role": "system", "content": f"Anda adalah analis ekonomi dan konsultan Usaha Kecil ahli. {language_instruction}"},
                 {"role": "user", "content": prompt_content}
             ],
             temperature=temperature,
@@ -326,7 +326,7 @@ def generate_narrative_explanation_custom(client, region, year, quarter, risk_sc
 
 # --- FUNGSI UTAMA STREAMLIT ---
 def main():
-    st.markdown('<div class="main-header">📊 Socioeconomic Risk Predictor with XAI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">🏪 Small Business Failure Risk Predictor with XAI</div>', unsafe_allow_html=True)
 
     # --- MODIFIKASI: Konfigurasi Klien API untuk DeepSeek ---
     try:
@@ -363,7 +363,7 @@ def main():
 
     with st.sidebar:
         st.markdown('<div class="sidebar-header">📁 Data Upload</div>', unsafe_allow_html=True)
-        uploaded_file = st.file_uploader("Upload file CSV data sosioekonomi", type=['csv'])
+        uploaded_file = st.file_uploader("Upload file CSV data sosioekonomi untuk analisis risiko usaha kecil", type=['csv'])
         
         if uploaded_file:
             st.success("✅ File berhasil diunggah!")
@@ -384,29 +384,29 @@ def main():
         
         st.markdown("---")
         st.markdown("### 🤖 Fitur DeepSeek AI")
-        st.info("💡 **Analisis AI Canggih:** Aplikasi ini menggunakan DeepSeek untuk analisis naratif yang mendalam dengan fitur:")
+        st.info("💡 **Analisis AI untuk Risiko Usaha Kecil:** Aplikasi ini menggunakan DeepSeek untuk analisis mendalam risiko kegagalan usaha kecil dengan fitur:")
         st.markdown("""
-        - 🎯 **Analisis Individual**: Per wilayah dengan LIME + SHAP
+        - 🎯 **Analisis Individual**: Per wilayah dengan LIME + SHAP untuk prediksi kegagalan usaha kecil
         - 📊 **Analisis Massal**: Batch analysis untuk multiple regions
         - ⚙️ **Parameter Custom**: Temperature, max tokens, bahasa
-        - 📄 **Multiple Format**: Ringkasan, detail, atau fokus kebijakan
+        - 📄 **Multiple Format**: Ringkasan, detail, atau fokus kebijakan Usaha Kecil
         - 🌍 **Multi-bahasa**: Indonesia, English, atau Mixed
         """)
         
         st.markdown("---")
         st.markdown("### ℹ️ Tentang Model")
         st.markdown("""
-        **🔬 XAI Pipeline:**
-        - **XGBoost**: Model prediksi utama
-        - **SHAP**: Global feature importance & patterns
-        - **LIME**: Local explanations per instance  
-        - **DeepSeek**: AI narrative analysis & insights
+        **🔬 XAI Pipeline untuk Prediksi Kegagalan Usaha Kecil:**
+        - **XGBoost**: Model prediksi utama untuk risiko kegagalan Usaha Kecil
+        - **SHAP**: Global feature importance & patterns yang mempengaruhi usaha kecil
+        - **LIME**: Local explanations per wilayah untuk kondisi spesifik Usaha Kecil
+        - **DeepSeek**: AI narrative analysis & insights untuk strategi pemberdayaan Usaha Kecil
         
         **📈 Workflow:**
-        1. Upload data → Prediksi risiko
-        2. SHAP analysis → Global patterns
-        3. LIME analysis → Local explanations
-        4. DeepSeek AI → Narrative insights
+        1. Upload data → Prediksi risiko kegagalan usaha kecil
+        2. SHAP analysis → Pola global faktor kegagalan Usaha Kecil
+        3. LIME analysis → Penjelasan lokal per wilayah
+        4. DeepSeek AI → Insights dan rekomendasi pemberdayaan Usaha Kecil
         """)
     
     if uploaded_file:
@@ -435,19 +435,19 @@ def main():
                 df_with_predictions = st.session_state.df_with_predictions
                 predictions = st.session_state.predictions
 
-                st.markdown('<div class="section-header">📈 Hasil Prediksi</div>', unsafe_allow_html=True)
+                st.markdown('<div class="section-header">📈 Hasil Prediksi Risiko Kegagalan Usaha Kecil</div>', unsafe_allow_html=True)
                 col1, col2, col3 = st.columns(3)
-                col1.metric("Rata-rata Skor Risiko", f"{np.mean(predictions):.3f}")
+                col1.metric("Rata-rata Skor Risiko Kegagalan Usaha Kecil", f"{np.mean(predictions):.3f}")
                 col2.metric("Skor Risiko Minimum", f"{np.min(predictions):.3f}")
                 col3.metric("Skor Risiko Maksimum", f"{np.max(predictions):.3f}")
 
                 with st.expander("📊 Tabel Prediksi Detail", expanded=False):
-                    st.dataframe(df_with_predictions[['kabupaten_kota', 'tahun', 'kuartal', 'Risk_Score']].sort_values('Risk_Score', ascending=False))
+                    st.dataframe(df_with_predictions[['kabupaten_kota', 'tahun', 'kuartal', 'Risk_Score']].sort_values('Risk_Score', ascending=False).rename(columns={'Risk_Score': 'Risiko_Kegagalan_Usaha_Kecil'}))
                 
                 # --- Bagian SHAP ---
-                st.markdown('<div class="section-header">🔍 Wawasan Explainable AI (XAI)</div>', unsafe_allow_html=True)
+                st.markdown('<div class="section-header">🔍 Wawasan Explainable AI (XAI) untuk Risiko Usaha Kecil</div>', unsafe_allow_html=True)
                 st.markdown("#### 📊 Global Feature Importance (SHAP)")
-                st.markdown("*Memahami dampak global setiap fitur terhadap prediksi model*")
+                st.markdown("*Memahami dampak global setiap faktor sosioekonomi terhadap risiko kegagalan usaha kecil*")
                 
                 # Generate SHAP explanations
                 with st.spinner("Menghasilkan analisis SHAP..."):
@@ -481,7 +481,7 @@ def main():
                             ax.set_yticks(range(len(feature_importance_df)))
                             ax.set_yticklabels(feature_importance_df['Feature'])
                             ax.set_xlabel('Mean |SHAP value|')
-                            ax.set_title('Global Feature Importance (SHAP)')
+                            ax.set_title('Global Feature Importance untuk Risiko Kegagalan Usaha Kecil (SHAP)')
                             ax.grid(axis='x', alpha=0.3)
                             
                             # Color bars based on importance
@@ -494,7 +494,7 @@ def main():
                             plt.close()
                         
                         with col2:
-                            st.markdown("**🏆 Top 10 Fitur Paling Berpengaruh:**")
+                            st.markdown("**🏆 Top 10 Faktor Paling Berpengaruh terhadap Kegagalan Usaha Kecil:**")
                             for idx, row in feature_importance_df.head(10).iterrows():
                                 st.write(f"**{idx+1}.** {row['Feature']}")
                                 st.write(f"   Skor: {row['Importance']:.4f}")
@@ -606,12 +606,12 @@ def main():
                             # Display top factors from SHAP
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.markdown("**🔴 Faktor Global Peningkat Risiko (SHAP):**")
+                                st.markdown("**🔴 Faktor Global Peningkat Risiko Kegagalan Usaha Kecil (SHAP):**")
                                 for feature, weight in shap_analysis['positive_factors'][:5]:
                                     st.markdown(f'<div class="risk-increasing"><strong>{feature}</strong><br/>Avg SHAP: <strong>+{weight:.4f}</strong></div>', unsafe_allow_html=True)
                             
                             with col2:
-                                st.markdown("**🟢 Faktor Global Penurun Risiko (SHAP):**")
+                                st.markdown("**🟢 Faktor Global Penurun Risiko Kegagalan Usaha Kecil (SHAP):**")
                                 for feature, weight in shap_analysis['negative_factors'][:5]:
                                     st.markdown(f'<div class="risk-decreasing"><strong>{feature}</strong><br/>Avg SHAP: <strong>{weight:.4f}</strong></div>', unsafe_allow_html=True)
                         
@@ -626,7 +626,7 @@ def main():
 
                 # --- Bagian LIME dengan Integrasi LLM ---
                 st.markdown("#### 🔎 Penjelasan Lokal (LIME)")
-                st.markdown("*Memahami prediksi individual untuk wilayah dan periode waktu tertentu*")
+                st.markdown("*Memahami prediksi individual risiko kegagalan Usaha Kecil untuk wilayah dan periode waktu tertentu*")
                 
                 col1, col2, col3 = st.columns(3)
                 unique_regions = sorted(df_with_predictions['kabupaten_kota'].unique())
@@ -653,8 +653,8 @@ def main():
                     lime_exp = generate_lime_explanation(model, X, instance_idx, MODEL_FEATURES)
                     
                     if lime_exp:
-                        st.markdown(f"**📋 Analisis Dampak Fitur untuk {st.session_state.selected_region} - Q{st.session_state.selected_quarter} {st.session_state.selected_year}**")
-                        st.info(f"Skor Risiko Prediksi: **{predicted_risk:.3f}**")
+                        st.markdown(f"**📋 Analisis Dampak Faktor Risiko Usaha Kecil untuk {st.session_state.selected_region} - Q{st.session_state.selected_quarter} {st.session_state.selected_year}**")
+                        st.info(f"Skor Risiko Kegagalan Usaha Kecil: **{predicted_risk:.3f}**")
                         
                         exp_list = lime_exp.as_list()
                         positive_features = sorted([(f, w) for f, w in exp_list if w > 0], key=lambda item: item[1], reverse=True)
@@ -662,11 +662,11 @@ def main():
                         
                         col1, col2 = st.columns(2)
                         with col1:
-                            st.markdown("**🔴 Faktor Peningkat Risiko:**")
+                            st.markdown("**🔴 Faktor Peningkat Risiko Kegagalan Usaha Kecil:**")
                             for feature, weight in positive_features:
                                 st.markdown(f'<div class="risk-increasing"><strong>{feature}</strong><br/>Dampak: <strong>+{weight:.3f}</strong></div>', unsafe_allow_html=True)
                         with col2:
-                            st.markdown("**🟢 Faktor Penurun Risiko:**")
+                            st.markdown("**🟢 Faktor Penurun Risiko Kegagalan Usaha Kecil:**")
                             for feature, weight in negative_features:
                                 st.markdown(f'<div class="risk-decreasing"><strong>{feature}</strong><br/>Dampak: <strong>{weight:.3f}</strong></div>', unsafe_allow_html=True)
 
@@ -674,8 +674,8 @@ def main():
                         st.markdown("---")
                         if llm_configured:
                             btn_key = f"ai_btn_{instance_idx}"
-                            if st.button("🤖 Buat Analisis Naratif dengan AI", key=btn_key):
-                                with st.spinner("🧠 AI sedang menyusun laporan analisis mendalam..."):
+                            if st.button("🤖 Buat Analisis Naratif Risiko Usaha Kecil dengan AI", key=btn_key):
+                                with st.spinner("🧠 AI sedang menyusun laporan analisis risiko kegagalan Usaha Kecil..."):
                                     # Get SHAP analysis if available
                                     shap_analysis = st.session_state.get('shap_analysis', None)
                                     
@@ -693,9 +693,9 @@ def main():
                             
                             # Tampilkan narasi jika ada
                             if f'narrative_{instance_idx}' in st.session_state:
-                                st.markdown("### 💡 Laporan Analisis AI")
+                                st.markdown("### 💡 Laporan Analisis AI - Risiko Kegagalan Usaha Kecil")
                                 # Add information about data sources
-                                st.info("📊 **Sumber Analisis:** Laporan ini mengombinasikan analisis LIME (spesifik wilayah) dan SHAP (pola global) untuk memberikan pemahaman yang komprehensif.")
+                                st.info("📊 **Sumber Analisis:** Laporan ini mengombinasikan analisis LIME (spesifik wilayah) dan SHAP (pola global) untuk memberikan pemahaman komprehensif tentang risiko kegagalan usaha kecil.")
                                 st.markdown(st.session_state[f'narrative_{instance_idx}'], unsafe_allow_html=True)
                         # --- Akhir Modifikasi ---
                     
@@ -721,8 +721,8 @@ def main():
                         if llm_configured:
                             st.markdown("---")
                             fallback_btn_key = f"ai_fallback_btn_{instance_idx}"
-                            if st.button("🤖 Buat Analisis Dasar dengan AI", key=fallback_btn_key):
-                                with st.spinner("🧠 AI sedang menganalisis berdasarkan data mentah..."):
+                            if st.button("🤖 Buat Analisis Dasar Risiko Usaha Kecil dengan AI", key=fallback_btn_key):
+                                with st.spinner("🧠 AI sedang menganalisis risiko Usaha Kecil berdasarkan data mentah..."):
                                     # Create simple positive/negative factors based on feature values
                                     median_values = X.median()
                                     simple_factors = []
@@ -752,7 +752,7 @@ def main():
                                     st.session_state[f'fallback_narrative_{instance_idx}'] = narrative
                             
                             if f'fallback_narrative_{instance_idx}' in st.session_state:
-                                st.markdown("### 💡 Laporan Analisis AI (Berbasis Data Mentah)")
+                                st.markdown("### 💡 Laporan Analisis AI - Risiko Kegagalan Usaha Kecil (Berbasis Data Mentah)")
                                 st.warning("⚠️ Analisis ini berbasis perbandingan dengan nilai median karena LIME tidak tersedia.")
                                 st.markdown(st.session_state[f'fallback_narrative_{instance_idx}'], unsafe_allow_html=True)
                 
@@ -820,14 +820,14 @@ def main():
                     st.session_state.analysis_language = analysis_language
                 
                 # Bulk Analysis Feature
-                st.markdown("**📊 Analisis Massal dengan DeepSeek**")
-                st.markdown("*Buat analisis AI untuk semua wilayah atau kategori tertentu*")
+                st.markdown("**📊 Analisis Massal Risiko Usaha Kecil dengan DeepSeek**")
+                st.markdown("*Buat analisis AI untuk risiko kegagalan Usaha Kecil di semua wilayah atau kategori tertentu*")
                 
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
                     bulk_analysis_type = st.selectbox("Jenis Analisis Massal",
-                                                     ["Top 5 Risiko Tertinggi", "Top 5 Risiko Terendah", 
+                                                     ["Top 5 Risiko Kegagalan Usaha Kecil Tertinggi", "Top 5 Risiko Kegagalan Usaha Kecil Terendah", 
                                                       "Semua Wilayah", "Per Tahun", "Per Kuartal"])
                 
                 with col2:
@@ -839,20 +839,20 @@ def main():
                 
                 with col3:
                     analysis_format = st.selectbox("Format Output",
-                                                  ["Ringkasan Eksekutif", "Laporan Detail", "Rekomendasi Kebijakan"])
+                                                  ["Ringkasan Eksekutif", "Laporan Detail", "Rekomendasi Kebijakan Usaha Kecil"])
                 
                 if st.button("🚀 Mulai Analisis Massal", type="primary"):
                     if not llm_configured:
                         st.error("DeepSeek API harus dikonfigurasi terlebih dahulu!")
                     else:
-                        with st.spinner("🧠 DeepSeek sedang menganalisis data secara massal..."):
+                        with st.spinner("🧠 DeepSeek sedang menganalisis risiko kegagalan Usaha Kecil secara massal..."):
                             bulk_results = []
                             
                             # Filter data based on analysis type
-                            if bulk_analysis_type == "Top 5 Risiko Tertinggi":
+                            if bulk_analysis_type == "Top 5 Risiko Kegagalan Usaha Kecil Tertinggi":
                                 top_risk = df_with_predictions.nlargest(5, 'Risk_Score')
                                 analysis_data = top_risk
-                            elif bulk_analysis_type == "Top 5 Risiko Terendah":
+                            elif bulk_analysis_type == "Top 5 Risiko Kegagalan Usaha Kecil Terendah":
                                 low_risk = df_with_predictions.nsmallest(5, 'Risk_Score')
                                 analysis_data = low_risk
                             elif bulk_analysis_type == "Per Tahun":
@@ -897,11 +897,11 @@ def main():
                                     
                                     # Custom prompt based on format
                                     if analysis_format == "Ringkasan Eksekutif":
-                                        format_instruction = "Buat ringkasan eksekutif singkat (maksimal 150 kata) yang fokus pada kesimpulan utama dan rekomendasi prioritas."
-                                    elif analysis_format == "Rekomendasi Kebijakan":
-                                        format_instruction = "Fokus pada rekomendasi kebijakan yang konkret dan actionable. Berikan 3-4 rekomendasi spesifik dengan prioritas implementasi."
+                                        format_instruction = "Buat ringkasan eksekutif singkat (maksimal 150 kata) yang fokus pada kesimpulan utama dan rekomendasi prioritas untuk pemberdayaan Usaha Kecil."
+                                    elif analysis_format == "Rekomendasi Kebijakan Usaha Kecil":
+                                        format_instruction = "Fokus pada rekomendasi kebijakan yang konkret dan actionable untuk pemberdayaan Usaha Kecil. Berikan 3-4 rekomendasi spesifik dengan prioritas implementasi."
                                     else:  # Laporan Detail
-                                        format_instruction = "Buat laporan detail lengkap dengan analisis mendalam semua aspek."
+                                        format_instruction = "Buat laporan detail lengkap dengan analisis mendalam semua aspek yang mempengaruhi risiko kegagalan Usaha Kecil."
                                     
                                     custom_narrative = generate_narrative_explanation_custom(
                                         client,
@@ -940,27 +940,27 @@ def main():
                             # Display results with tabs
                             if bulk_results:
                                 for i, result in enumerate(bulk_results):
-                                    with st.expander(f"📋 {result['region']} - Q{result['quarter']} {result['year']} (Risk: {result['risk_score']:.3f})"):
+                                    with st.expander(f"📋 {result['region']} - Q{result['quarter']} {result['year']} (Risiko Kegagalan Usaha Kecil: {result['risk_score']:.3f})"):
                                         st.markdown(result['analysis'])
                 
                 # Download bulk results
                 if 'bulk_analysis_results' in st.session_state and st.session_state.bulk_analysis_results:
-                    st.markdown("**💾 Download Hasil Analisis Massal**")
+                    st.markdown("**💾 Download Hasil Analisis Massal Risiko Usaha Kecil**")
                     
                     # Prepare download data
-                    bulk_text = f"# Laporan Analisis Risiko Massal - {bulk_analysis_type}\n"
+                    bulk_text = f"# Laporan Analisis Risiko Kegagalan Usaha Kecil Massal - {bulk_analysis_type}\n"
                     bulk_text += f"Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                     
                     for result in st.session_state.bulk_analysis_results:
                         bulk_text += f"## {result['region']} - Q{result['quarter']} {result['year']}\n"
-                        bulk_text += f"**Risk Score:** {result['risk_score']:.3f}\n\n"
+                        bulk_text += f"**Skor Risiko Kegagalan Usaha Kecil:** {result['risk_score']:.3f}\n\n"
                         bulk_text += result['analysis']
                         bulk_text += "\n\n---\n\n"
                     
                     st.download_button(
                         label="📄 Download Laporan Massal (Markdown)",
                         data=bulk_text,
-                        file_name=f"bulk_analysis_{bulk_analysis_type.lower().replace(' ', '_')}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.md",
+                        file_name=f"bulk_analysis_usaha_kecil_{bulk_analysis_type.lower().replace(' ', '_')}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.md",
                         mime="text/markdown"
                     )
                 
@@ -968,8 +968,9 @@ def main():
         # --- Halaman Sambutan (tidak ada perubahan) ---
         st.markdown("""
         <div class="info-card">
-            <h3>👋 Selamat Datang di Prediktor Risiko Sosioekonomi!</h3>
-            <p><em>Analitik machine learning canggih untuk penilaian risiko sosioekonomi. Unggah data Anda di sidebar untuk memulai.</em></p>
+            <h3>👋 Selamat Datang di Prediktor Risiko Kegagalan Usaha Kecil!</h3>
+            <p><em>Analitik machine learning canggih untuk penilaian risiko kegagalan Usaha Kecil berbasis faktor sosioekonomi. Unggah data Anda di sidebar untuk memulai analisis.</em></p>
+            <p><strong>🎯 Fokus:</strong> Prediksi dan analisis risiko kegagalan usaha kecil untuk mendukung kebijakan pemberdayaan Usaha Kecil yang tepat sasaran.</p>
         </div>
         """, unsafe_allow_html=True)
 
