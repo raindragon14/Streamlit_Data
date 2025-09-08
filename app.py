@@ -265,6 +265,65 @@ def generate_narrative_explanation(client, region, year, quarter, risk_score, po
     except Exception as e:
         return f"Terjadi kesalahan saat menghasilkan analisis AI dari DeepSeek: {str(e)}"
 
+def generate_narrative_explanation_custom(client, region, year, quarter, risk_score, positive_features, negative_features, shap_analysis=None, format_instruction="", language="Bahasa Indonesia", temperature=0.7, max_tokens=1500):
+    """Generate a custom narrative explanation with specific parameters."""
+    if not client:
+        return "Layanan AI tidak dikonfigurasi."
+
+    pos_factors_str = "\n".join([f"- `{factor}` (Kontribusi: {weight:.3f})" for factor, weight in positive_features])
+    neg_factors_str = "\n".join([f"- `{factor}` (Kontribusi: {weight:.3f})" for factor, weight in negative_features])
+    
+    # Add SHAP analysis if available
+    shap_section = ""
+    if shap_analysis:
+        shap_pos_str = "\n".join([f"- `{factor}` (Rata-rata SHAP: {weight:.4f})" for factor, weight in shap_analysis['positive_factors'][:3]])
+        shap_neg_str = "\n".join([f"- `{factor}` (Rata-rata SHAP: {weight:.4f})" for factor, weight in shap_analysis['negative_factors'][:3]])
+        
+        shap_section = f"""
+    **Pola Global (SHAP):**
+    **Peningkat Risiko Global:** {shap_pos_str}
+    **Penurun Risiko Global:** {shap_neg_str}
+    """
+    
+    # Language instruction
+    language_instruction = ""
+    if language == "English":
+        language_instruction = "Please write the analysis in English."
+    elif language == "Mixed (ID/EN)":
+        language_instruction = "Use mixed Indonesian and English, with technical terms in English but explanations in Indonesian."
+    else:
+        language_instruction = "Tulis analisis dalam Bahasa Indonesia."
+    
+    prompt_content = f"""
+    Anda adalah analis ekonomi ahli. {language_instruction}
+    
+    **Analisis untuk:** {region} - Q{quarter} {year}
+    **Skor Risiko:** {risk_score:.3f}
+    
+    **Faktor Lokal (LIME):**
+    **Peningkat Risiko:** {pos_factors_str}
+    **Penurun Risiko:** {neg_factors_str}
+    {shap_section}
+    
+    **Instruksi Format:** {format_instruction}
+    
+    Buat analisis yang fokus dan actionable berdasarkan format yang diminta.
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": f"Anda adalah analis ekonomi ahli. {language_instruction}"},
+                {"role": "user", "content": prompt_content}
+            ],
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error generating analysis: {str(e)}"
+
 # --- FUNGSI UTAMA STREAMLIT ---
 def main():
     st.markdown('<div class="main-header">📊 Socioeconomic Risk Predictor with XAI</div>', unsafe_allow_html=True)
@@ -324,16 +383,30 @@ def main():
             st.write("- `Proksi Inflasi`")
         
         st.markdown("---")
-        st.markdown("### 🤖 Fitur AI")
-        st.info("💡 **Analisis Naratif AI:** Setelah prediksi, Anda dapat menggunakan AI untuk mendapatkan analisis mendalam yang menggabungkan insight LIME dan SHAP.")
+        st.markdown("### 🤖 Fitur DeepSeek AI")
+        st.info("💡 **Analisis AI Canggih:** Aplikasi ini menggunakan DeepSeek untuk analisis naratif yang mendalam dengan fitur:")
+        st.markdown("""
+        - 🎯 **Analisis Individual**: Per wilayah dengan LIME + SHAP
+        - 📊 **Analisis Massal**: Batch analysis untuk multiple regions
+        - ⚙️ **Parameter Custom**: Temperature, max tokens, bahasa
+        - 📄 **Multiple Format**: Ringkasan, detail, atau fokus kebijakan
+        - 🌍 **Multi-bahasa**: Indonesia, English, atau Mixed
+        """)
         
         st.markdown("---")
         st.markdown("### ℹ️ Tentang Model")
         st.markdown("""
-        Model ini menggunakan **XGBoost** dengan fitur explainable AI:
-        - **SHAP**: Analisis global feature importance
-        - **LIME**: Penjelasan prediksi individual  
-        - **AI Analysis**: Interpretasi naratif yang mudah dipahami
+        **🔬 XAI Pipeline:**
+        - **XGBoost**: Model prediksi utama
+        - **SHAP**: Global feature importance & patterns
+        - **LIME**: Local explanations per instance  
+        - **DeepSeek**: AI narrative analysis & insights
+        
+        **📈 Workflow:**
+        1. Upload data → Prediksi risiko
+        2. SHAP analysis → Global patterns
+        3. LIME analysis → Local explanations
+        4. DeepSeek AI → Narrative insights
         """)
     
     if uploaded_file:
@@ -686,106 +759,208 @@ def main():
                 else:
                     st.warning(f"Tidak ada data untuk {st.session_state.selected_region} pada Q{st.session_state.selected_quarter} {st.session_state.selected_year}")
 
-                # --- Bagian Visualisasi dan Ekspor ---
-                st.markdown('<div class="section-header">📊 Visualisasi dan Ekspor Data</div>', unsafe_allow_html=True)
+                # --- Bagian Konfigurasi dan Penggunaan LLM DeepSeek ---
+                st.markdown('<div class="section-header">🤖 Konfigurasi LLM DeepSeek</div>', unsafe_allow_html=True)
                 
-                # Distribution plot
-                col1, col2 = st.columns(2)
+                col1, col2 = st.columns([1, 1])
                 
                 with col1:
-                    st.markdown("**📈 Distribusi Skor Risiko**")
-                    fig, ax = plt.subplots(figsize=(8, 6))
-                    ax.hist(predictions, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
-                    ax.axvline(np.mean(predictions), color='red', linestyle='--', label=f'Mean: {np.mean(predictions):.3f}')
-                    ax.axvline(np.median(predictions), color='green', linestyle='--', label=f'Median: {np.median(predictions):.3f}')
-                    ax.set_xlabel('Risk Score')
-                    ax.set_ylabel('Frequency')
-                    ax.set_title('Distribution of Risk Scores')
-                    ax.legend()
-                    ax.grid(alpha=0.3)
-                    st.pyplot(fig)
-                    plt.close()
+                    st.markdown("**🔧 Status Konfigurasi DeepSeek**")
+                    if llm_configured:
+                        st.success("✅ DeepSeek API terkonfigurasi dengan baik")
+                        st.info("🎯 **Model:** deepseek-chat")
+                        st.info("🌐 **Endpoint:** https://api.deepseek.com/v1")
+                        
+                        # Test connection button
+                        if st.button("🔍 Test Koneksi DeepSeek"):
+                            with st.spinner("Testing koneksi ke DeepSeek API..."):
+                                try:
+                                    test_response = client.chat.completions.create(
+                                        model="deepseek-chat",
+                                        messages=[
+                                            {"role": "system", "content": "You are a helpful assistant."},
+                                            {"role": "user", "content": "Hello, can you confirm this connection is working?"}
+                                        ],
+                                        max_tokens=50,
+                                        temperature=0.3
+                                    )
+                                    st.success("🎉 Koneksi berhasil! DeepSeek merespons dengan baik.")
+                                    st.code(test_response.choices[0].message.content)
+                                except Exception as e:
+                                    st.error(f"❌ Test koneksi gagal: {e}")
+                    else:
+                        st.error("❌ DeepSeek API belum dikonfigurasi")
+                        st.markdown("""
+                        **Cara Konfigurasi:**
+                        1. Dapatkan API key dari [DeepSeek Platform](https://platform.deepseek.com/)
+                        2. Tambahkan ke `st.secrets`:
+                        ```toml
+                        [secrets]
+                        DEEPSEEK_API_KEY = "your-api-key-here"
+                        ```
+                        """)
                 
                 with col2:
-                    st.markdown("**🗺️ Risiko per Wilayah**")
-                    region_risk = df_with_predictions.groupby('kabupaten_kota')['Risk_Score'].mean().sort_values(ascending=False)
+                    st.markdown("**⚙️ Parameter LLM**")
                     
-                    fig, ax = plt.subplots(figsize=(8, 8))
-                    y_pos = np.arange(len(region_risk))
-                    bars = ax.barh(y_pos, region_risk.values)
-                    ax.set_yticks(y_pos)
-                    ax.set_yticklabels(region_risk.index, fontsize=8)
-                    ax.set_xlabel('Average Risk Score')
-                    ax.set_title('Average Risk Score by Region')
-                    ax.grid(axis='x', alpha=0.3)
+                    # LLM Parameters
+                    temperature = st.slider("🌡️ Temperature", 0.0, 1.0, 0.7, 0.1, 
+                                          help="Kontrol kreativitas respons (0=deterministik, 1=kreatif)")
+                    max_tokens = st.slider("📏 Max Tokens", 500, 3000, 1500, 100,
+                                         help="Maksimum panjang respons AI")
                     
-                    # Color code bars
-                    for i, bar in enumerate(bars):
-                        bar.set_color(plt.cm.Reds(region_risk.values[i] / region_risk.max()))
+                    # Store in session state
+                    st.session_state.llm_temperature = temperature
+                    st.session_state.llm_max_tokens = max_tokens
                     
-                    plt.tight_layout()
-                    st.pyplot(fig)
-                    plt.close()
+                    # Analysis language preference
+                    analysis_language = st.selectbox("🌍 Bahasa Analisis", 
+                                                    ["Bahasa Indonesia", "English", "Mixed (ID/EN)"],
+                                                    help="Bahasa untuk laporan analisis AI")
+                    st.session_state.analysis_language = analysis_language
                 
-                # Export functionality
-                st.markdown("**💾 Ekspor Hasil Prediksi**")
+                # Bulk Analysis Feature
+                st.markdown("**📊 Analisis Massal dengan DeepSeek**")
+                st.markdown("*Buat analisis AI untuk semua wilayah atau kategori tertentu*")
+                
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    csv_data = df_with_predictions.to_csv(index=False)
-                    st.download_button(
-                        label="📥 Download CSV",
-                        data=csv_data,
-                        file_name=f"risk_predictions_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
-                    )
+                    bulk_analysis_type = st.selectbox("Jenis Analisis Massal",
+                                                     ["Top 5 Risiko Tertinggi", "Top 5 Risiko Terendah", 
+                                                      "Semua Wilayah", "Per Tahun", "Per Kuartal"])
                 
                 with col2:
-                    excel_buffer = io.BytesIO()
-                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                        df_with_predictions.to_excel(writer, sheet_name='Predictions', index=False)
-                        
-                        # Add summary sheet
-                        summary_df = pd.DataFrame({
-                            'Metric': ['Mean Risk Score', 'Min Risk Score', 'Max Risk Score', 'Std Risk Score'],
-                            'Value': [np.mean(predictions), np.min(predictions), np.max(predictions), np.std(predictions)]
-                        })
-                        summary_df.to_excel(writer, sheet_name='Summary', index=False)
-                    
-                    excel_data = excel_buffer.getvalue()
-                    st.download_button(
-                        label="📊 Download Excel",
-                        data=excel_data,
-                        file_name=f"risk_analysis_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                    if bulk_analysis_type in ["Per Tahun", "Per Kuartal"]:
+                        available_years = sorted(df_with_predictions['tahun'].unique())
+                        selected_year_bulk = st.selectbox("Pilih Tahun", available_years)
+                    else:
+                        selected_year_bulk = None
                 
                 with col3:
-                    # Generate summary report
-                    summary_report = f"""
-                    # Risk Prediction Summary Report
+                    analysis_format = st.selectbox("Format Output",
+                                                  ["Ringkasan Eksekutif", "Laporan Detail", "Rekomendasi Kebijakan"])
+                
+                if st.button("🚀 Mulai Analisis Massal", type="primary"):
+                    if not llm_configured:
+                        st.error("DeepSeek API harus dikonfigurasi terlebih dahulu!")
+                    else:
+                        with st.spinner("🧠 DeepSeek sedang menganalisis data secara massal..."):
+                            bulk_results = []
+                            
+                            # Filter data based on analysis type
+                            if bulk_analysis_type == "Top 5 Risiko Tertinggi":
+                                top_risk = df_with_predictions.nlargest(5, 'Risk_Score')
+                                analysis_data = top_risk
+                            elif bulk_analysis_type == "Top 5 Risiko Terendah":
+                                low_risk = df_with_predictions.nsmallest(5, 'Risk_Score')
+                                analysis_data = low_risk
+                            elif bulk_analysis_type == "Per Tahun":
+                                analysis_data = df_with_predictions[df_with_predictions['tahun'] == selected_year_bulk]
+                            elif bulk_analysis_type == "Per Kuartal":
+                                analysis_data = df_with_predictions[df_with_predictions['tahun'] == selected_year_bulk]
+                            else:  # Semua Wilayah
+                                analysis_data = df_with_predictions.sample(min(10, len(df_with_predictions)))  # Limit to 10 for performance
+                            
+                            progress_bar = st.progress(0)
+                            total_analyses = len(analysis_data)
+                            
+                            for idx, (_, row) in enumerate(analysis_data.iterrows()):
+                                try:
+                                    # Get LIME explanation for this instance
+                                    instance_idx = row.name
+                                    lime_exp = generate_lime_explanation(model, X, instance_idx, MODEL_FEATURES)
+                                    
+                                    if lime_exp:
+                                        exp_list = lime_exp.as_list()
+                                        positive_features = sorted([(f, w) for f, w in exp_list if w > 0], 
+                                                                 key=lambda item: item[1], reverse=True)[:3]
+                                        negative_features = sorted([(f, w) for f, w in exp_list if w < 0], 
+                                                                 key=lambda item: item[1])[:3]
+                                    else:
+                                        # Fallback to simple analysis
+                                        median_values = X.median()
+                                        instance_data = X.iloc[instance_idx]
+                                        simple_factors = []
+                                        
+                                        for feature in MODEL_FEATURES:
+                                            value = instance_data[feature]
+                                            median_val = median_values[feature]
+                                            diff = (value - median_val) / median_val if median_val != 0 else 0
+                                            simple_factors.append((feature, diff))
+                                        
+                                        positive_features = [(f, w) for f, w in simple_factors if w > 0][:3]
+                                        negative_features = [(f, w) for f, w in simple_factors if w < 0][:3]
+                                    
+                                    # Generate AI analysis
+                                    shap_analysis = st.session_state.get('shap_analysis', None)
+                                    
+                                    # Custom prompt based on format
+                                    if analysis_format == "Ringkasan Eksekutif":
+                                        format_instruction = "Buat ringkasan eksekutif singkat (maksimal 150 kata) yang fokus pada kesimpulan utama dan rekomendasi prioritas."
+                                    elif analysis_format == "Rekomendasi Kebijakan":
+                                        format_instruction = "Fokus pada rekomendasi kebijakan yang konkret dan actionable. Berikan 3-4 rekomendasi spesifik dengan prioritas implementasi."
+                                    else:  # Laporan Detail
+                                        format_instruction = "Buat laporan detail lengkap dengan analisis mendalam semua aspek."
+                                    
+                                    custom_narrative = generate_narrative_explanation_custom(
+                                        client,
+                                        row['kabupaten_kota'],
+                                        row['tahun'],
+                                        row['kuartal'],
+                                        row['Risk_Score'],
+                                        positive_features,
+                                        negative_features,
+                                        shap_analysis,
+                                        format_instruction,
+                                        st.session_state.get('analysis_language', 'Bahasa Indonesia'),
+                                        st.session_state.get('llm_temperature', 0.7),
+                                        st.session_state.get('llm_max_tokens', 1500)
+                                    )
+                                    
+                                    bulk_results.append({
+                                        'region': row['kabupaten_kota'],
+                                        'year': row['tahun'],
+                                        'quarter': row['kuartal'],
+                                        'risk_score': row['Risk_Score'],
+                                        'analysis': custom_narrative
+                                    })
+                                    
+                                except Exception as e:
+                                    st.warning(f"Gagal menganalisis {row['kabupaten_kota']}: {e}")
+                                
+                                progress_bar.progress((idx + 1) / total_analyses)
+                            
+                            # Display results
+                            st.success(f"✅ Analisis massal selesai! {len(bulk_results)} analisis berhasil dibuat.")
+                            
+                            # Save to session state
+                            st.session_state.bulk_analysis_results = bulk_results
+                            
+                            # Display results with tabs
+                            if bulk_results:
+                                for i, result in enumerate(bulk_results):
+                                    with st.expander(f"📋 {result['region']} - Q{result['quarter']} {result['year']} (Risk: {result['risk_score']:.3f})"):
+                                        st.markdown(result['analysis'])
+                
+                # Download bulk results
+                if 'bulk_analysis_results' in st.session_state and st.session_state.bulk_analysis_results:
+                    st.markdown("**💾 Download Hasil Analisis Massal**")
                     
-                    **Analysis Date:** {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
-                    **Total Records:** {len(df_with_predictions)}
+                    # Prepare download data
+                    bulk_text = f"# Laporan Analisis Risiko Massal - {bulk_analysis_type}\n"
+                    bulk_text += f"Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                     
-                    ## Risk Score Statistics
-                    - **Mean:** {np.mean(predictions):.4f}
-                    - **Median:** {np.median(predictions):.4f}
-                    - **Standard Deviation:** {np.std(predictions):.4f}
-                    - **Min:** {np.min(predictions):.4f}
-                    - **Max:** {np.max(predictions):.4f}
-                    
-                    ## Top 5 Highest Risk Regions
-                    {region_risk.head().to_string()}
-                    
-                    ## Top 5 Lowest Risk Regions  
-                    {region_risk.tail().to_string()}
-                    """
+                    for result in st.session_state.bulk_analysis_results:
+                        bulk_text += f"## {result['region']} - Q{result['quarter']} {result['year']}\n"
+                        bulk_text += f"**Risk Score:** {result['risk_score']:.3f}\n\n"
+                        bulk_text += result['analysis']
+                        bulk_text += "\n\n---\n\n"
                     
                     st.download_button(
-                        label="📄 Download Report",
-                        data=summary_report,
-                        file_name=f"risk_summary_report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.md",
+                        label="📄 Download Laporan Massal (Markdown)",
+                        data=bulk_text,
+                        file_name=f"bulk_analysis_{bulk_analysis_type.lower().replace(' ', '_')}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.md",
                         mime="text/markdown"
                     )
                 
