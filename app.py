@@ -81,8 +81,7 @@ MODEL_FEATURES = [
     'Tingkat Pengangguran Terbuka', 'Upah Minimum', 'Jumlah Penduduk (Ribu)',
     'Laju Pertumbuhan Penduduk per Tahun', 'Persentase Penduduk',
     'Kepadatan Penduduk per km persegi (Km2)', 'Rasio Jenis Kelamin Penduduk',
-    'PDRB', 'Laju_Inflasi', 'Gini_Ratio', 'investasi_per_kapita',
-    'Jumlah Perusahaan Kecil', 'Jumlah Perusahaan'
+    'PDRB', 'Laju_Inflasi', 'Gini_Ratio', 'investasi_per_kapita'
 ]
 FULL_EXPECTED_COLUMNS = MODEL_FEATURES + ['kabupaten_kota', 'tahun', 'kuartal', 'Proksi Inflasi']
 
