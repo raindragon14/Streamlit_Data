@@ -226,7 +226,7 @@ def generate_narrative_explanation(client, region, year, quarter, risk_score, po
     **Konteks Analisis:**
     - **Wilayah:** {region}
     - **Periode:** Kuartal {quarter}, Tahun {year}
-    - **Skor Risiko Kegagalan Usaha Kecil:** {risk_score:.3f} (skor lebih tinggi berarti risiko kegagalan usaha kecil lebih besar)
+    - **Skor Risiko Kegagalan Usaha Kecil:** {risk_score:.3f} (skor lebih tinggi berarti risiko kegagalan usaha kecil lebih besar, skor berupa hasil normalisasi z-score)
 
     **Faktor-faktor Kunci dari Model (berdasarkan LIME - Analisis Lokal untuk Wilayah Ini):**
     **Faktor Peningkat Risiko Kegagalan Usaha Kecil:**
