@@ -8,5 +8,5 @@ shap
 matplotlib
 seaborn
 joblib
-xgboost
+xgboost==3.0.4
 lime
