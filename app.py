@@ -170,7 +170,7 @@ def get_ai_client():
     except Exception:
         return None, False
         
-def build_ai_prompt(region, year, quarter, risk_score, positive_features, negative_features, shap_analysis, analysis_language, lime_failed=False):
+def build_ai_prompt(region, year, quarter, risk_score, positive_features, negative_features, shap_analysis, lime_failed=False):
     """Membangun prompt yang dinamis dan terstruktur untuk LLM."""
     
     pos_factors_str = "\n".join([f"- `{factor}` (Kontribusi: {weight:.3f})" for factor, weight in positive_features])
