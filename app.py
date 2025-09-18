@@ -1,3 +1,5 @@
+# app_refined.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -5,14 +7,15 @@ import joblib
 import shap
 from lime import lime_tabular
 import matplotlib.pyplot as plt
-import seaborn as sns
+import openai
 import warnings
-import openai  # --- MODIFIKASI: Menggunakan library openai ---
-import io
 
 warnings.filterwarnings('ignore')
 
-# Set page config
+# ======================================================================================
+# KONFIGURASI DAN GAYA (STYLING)
+# ======================================================================================
+
 st.set_page_config(
     page_title="Small Business Failure Risk Predictor",
     page_icon="🏪",
@@ -20,62 +23,39 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS (tidak ada perubahan)
+# Custom CSS untuk tampilan yang lebih menarik
 st.markdown("""
 <style>
-.main-header {
-    font-size: 2.5rem;
-    color: #1f77b4;
-    text-align: center;
-    margin-bottom: 2rem;
-    font-weight: 600;
-}
-.section-header {
-    font-size: 1.5rem;
-    color: #2c3e50;
-    margin-top: 2rem;
-    margin-bottom: 1rem;
-    font-weight: 500;
-    border-bottom: 2px solid #3498db;
-    padding-bottom: 0.5rem;
-}
-.sidebar-header {
-    font-size: 1.2rem;
-    color: #2c3e50;
-    font-weight: 600;
-    margin-bottom: 1rem;
-    text-align: center;
-}
-.risk-increasing {
-    background-color: #fdf2f2;
-    border: 1px solid #fecaca;
-    border-left: 4px solid #dc3545;
-    padding: 12px;
-    margin: 8px 0;
-    border-radius: 6px;
-    color: #721c24;
-}
-.risk-decreasing {
-    background-color: #f0f9f4;
-    border: 1px solid #bbf7d0;
-    border-left: 4px solid #28a745;
-    padding: 12px;
-    margin: 8px 0;
-    border-radius: 6px;
-    color: #14532d;
-}
-.info-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 1.5rem;
-    border-radius: 10px;
-    margin: 1rem 0;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
+    .main-header {
+        font-size: 2.5rem; color: #1f77b4; text-align: center; margin-bottom: 2rem; font-weight: 600;
+    }
+    .section-header {
+        font-size: 1.5rem; color: #2c3e50; margin-top: 2rem; margin-bottom: 1rem;
+        font-weight: 500; border-bottom: 2px solid #3498db; padding-bottom: 0.5rem;
+    }
+    .sidebar-header {
+        font-size: 1.2rem; color: #2c3e50; font-weight: 600; margin-bottom: 1rem; text-align: center;
+    }
+    .risk-increasing {
+        background-color: #fdf2f2; border: 1px solid #fecaca; border-left: 4px solid #dc3545;
+        padding: 12px; margin: 8px 0; border-radius: 6px; color: #721c24;
+    }
+    .risk-decreasing {
+        background-color: #f0f9f4; border: 1px solid #bbf7d0; border-left: 4px solid #28a745;
+        padding: 12px; margin: 8px 0; border-radius: 6px; color: #14532d;
+    }
+    .info-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;
+        padding: 1.5rem; border-radius: 10px; margin: 1rem 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Variabel Global & Fungsi Bawaan (tidak ada perubahan) ---
+
+# ======================================================================================
+# VARIABEL GLOBAL & FUNGSI UTILITAS
+# ======================================================================================
+
 MODEL_FEATURES = [
     'Garis_Kemiskinan', 'Indeks_Pembangunan_Manusia', 'Persen_Penduduk_Miskin',
     'Tingkat Pengangguran Terbuka', 'Upah Minimum', 'Jumlah Penduduk (Ribu)',
@@ -85,7 +65,14 @@ MODEL_FEATURES = [
 ]
 FULL_EXPECTED_COLUMNS = MODEL_FEATURES + ['kabupaten_kota', 'tahun', 'kuartal', 'Proksi Inflasi']
 
+
+# ======================================================================================
+# FUNGSI-FUNGSI DENGAN CACHING UNTUK PERFORMA
+# ======================================================================================
+
+@st.cache_resource
 def load_model():
+    """Memuat pipeline model dari file dan menyimpannya di cache."""
     try:
         pipeline = joblib.load('Pipeline/risk_prediction_pipeline.pkl')
         return pipeline
@@ -93,134 +80,120 @@ def load_model():
         st.error(f"Error loading model: {e}")
         return None
 
-def validate_csv(uploaded_file):
+@st.cache_data
+def validate_and_process_csv(uploaded_file):
+    """Memvalidasi dan memproses file CSV, hasilnya di-cache."""
     try:
         df = pd.read_csv(uploaded_file)
         missing_cols = set(FULL_EXPECTED_COLUMNS) - set(df.columns)
         if missing_cols:
-            st.warning(f"Missing columns: {', '.join(missing_cols)}")
+            st.warning(f"Kolom yang hilang: {', '.join(missing_cols)}")
             return None
+        
         for col in MODEL_FEATURES:
-            if col in df.columns and not pd.api.types.is_numeric_dtype(df[col]):
+            if col in df.columns:
                 df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
+
+        # Menghapus baris dengan nilai NaN pada fitur-fitur penting
+        original_rows = len(df)
+        df.dropna(subset=MODEL_FEATURES, inplace=True)
+        if len(df) < original_rows:
+            st.info(f"Ditemukan dan dihapus {original_rows - len(df)} baris dengan data yang tidak lengkap.")
+
+        if df.empty:
+            st.error("Tidak ada data yang valid tersisa setelah pembersihan. Mohon periksa file Anda.")
+            return None
+
         return df
     except Exception as e:
         st.error(f"Error reading CSV: {e}")
         return None
 
-def generate_shap_explanations(model, X, feature_names):
-    """Generate SHAP explanations for the model"""
-    try:
-        # Create explainer with better error handling
-        if hasattr(model, 'named_steps'):
-            # Pipeline model
-            underlying_model = model.named_steps['xgb_model']
-        else:
-            underlying_model = model
-        
-        # Try different explainer types based on model type
-        try:
-            # For tree-based models, use TreeExplainer (more efficient)
-            if hasattr(underlying_model, 'get_booster') or 'XGB' in str(type(underlying_model)):
-                explainer = shap.TreeExplainer(underlying_model)
-            else:
-                explainer = shap.Explainer(underlying_model)
-        except Exception:
-            # Fallback to general Explainer
-            explainer = shap.Explainer(underlying_model)
-        
-        # Get SHAP values with error handling
-        shap_values = explainer(X)
-        
-        return shap_values
-    except Exception as e:
-        st.warning(f"SHAP explanation generation failed: {e}")
-        st.info("💡 Tip: Pastikan model kompatibel dengan SHAP dan data tidak memiliki nilai yang bermasalah.")
-        return None
+@st.cache_data
+def run_predictions_and_shap(_model, df):
+    """Menjalankan prediksi dan kalkulasi SHAP, hasilnya di-cache."""
+    X = df[MODEL_FEATURES].copy()
+    predictions = _model.predict(X)
+    df_with_predictions = df.copy()
+    df_with_predictions['Risk_Score'] = predictions
 
-def generate_lime_explanation(model, X, instance_idx, feature_names):
-    """Generate LIME explanation for a specific instance"""
+    # Ekstraksi model XGBoost dari pipeline
+    underlying_model = _model.named_steps.get('xgb_model', _model)
+    
     try:
-        # Get the underlying model from pipeline if needed
-        if hasattr(model, 'named_steps'):
-            underlying_model = model.named_steps['xgb_model']
-        else:
-            underlying_model = model
-        
-        # Ensure data is clean and has proper variance
+        explainer = shap.Explainer(underlying_model)
+        shap_values = explainer(X)
+    except Exception as e:
+        st.warning(f"Gagal menghasilkan penjelasan SHAP: {e}")
+        shap_values = None
+
+    return df_with_predictions, X, shap_values
+
+def generate_lime_explanation(model, X, instance_idx):
+    """Generate LIME explanation. Dibuat lebih robust."""
+    try:
+        underlying_model = model.named_steps.get('xgb_model', model)
         X_clean = X.copy()
-        
-        # Check for and handle problematic features
         for col in X_clean.columns:
-            # Handle constant features (zero variance)
-            if X_clean[col].std() == 0:
-                # Add small noise to constant features
-                X_clean[col] = X_clean[col] + np.random.normal(0, 1e-6, size=len(X_clean))
-            
-            # Handle features with very small variance
-            elif X_clean[col].std() < 1e-10:
-                X_clean[col] = X_clean[col] + np.random.normal(0, 1e-6, size=len(X_clean))
-            
-            # Handle infinite or very large values
-            X_clean[col] = np.clip(X_clean[col], -1e10, 1e10)
-            
-            # Replace any remaining NaN values
-            if X_clean[col].isna().any():
-                X_clean[col] = X_clean[col].fillna(X_clean[col].median())
+            if X_clean[col].std() < 1e-9:
+                X_clean[col] += np.random.normal(0, 1e-6, size=len(X_clean))
         
-        # Create LIME explainer with more robust parameters
         explainer = lime_tabular.LimeTabularExplainer(
             training_data=X_clean.values,
-            feature_names=feature_names,
+            feature_names=MODEL_FEATURES,
             mode='regression',
-            verbose=False,  # Reduce verbosity to avoid warnings
+            verbose=False,
             random_state=42,
-            discretize_continuous=True,  # This can help with numerical stability
-            sample_around_instance=True  # More stable sampling
+            discretize_continuous=True,
+            sample_around_instance=True
         )
-        
-        # Explain instance with error handling
         exp = explainer.explain_instance(
-            X_clean.iloc[instance_idx].values,
+            X.iloc[instance_idx].values,
             underlying_model.predict,
-            num_features=min(10, len(feature_names)),  # Ensure we don't exceed available features
-            num_samples=1000  # Reduce samples if needed for stability
+            num_features=min(10, len(MODEL_FEATURES))
         )
-        
         return exp
     except Exception as e:
-        # More specific error handling
-        if "scale parameter must be positive" in str(e) or "truncnorm" in str(e):
-            st.warning("⚠️ LIME explanation cannot be generated due to data distribution issues. This can happen when features have very low variance or numerical stability problems.")
-            st.info("💡 Try selecting a different region/time period or check if your data has sufficient variance in the features.")
-        else:
-            st.warning(f"LIME explanation generation failed: {str(e)}")
+        st.warning(f"Gagal menghasilkan penjelasan LIME: {e}")
         return None
 
-# --- TAMBAHAN: Fungsi untuk memanggil DeepSeek API ---
-def generate_narrative_explanation(client, region, year, quarter, risk_score, positive_features, negative_features, shap_analysis=None):
-    """Generate a narrative explanation using DeepSeek API via openai client."""
-    if not client:
-        return "Layanan AI tidak dikonfigurasi."
+# ======================================================================================
+# FUNGSI-FUNGSI INTEGRASI AI (DEEPSEEK)
+# ======================================================================================
 
-    pos_factors_str = "\n".join([f"- `{factor}` (Kontribusi LIME: {weight:.3f})" for factor, weight in positive_features])
-    neg_factors_str = "\n".join([f"- `{factor}` (Kontribusi LIME: {weight:.3f})" for factor, weight in negative_features])
+def get_ai_client():
+    """Menginisialisasi dan mengembalikan klien OpenAI untuk DeepSeek."""
+    try:
+        client = openai.OpenAI(
+            api_key=st.secrets["DEEPSEEK_API_KEY"],
+            base_url="https://api.deepseek.com/v1"
+        )
+        return client, True
+    except Exception:
+        return None, False
+        
+def build_ai_prompt(region, year, quarter, risk_score, positive_features, negative_features, shap_analysis, analysis_language, lime_failed=False):
+    """Membangun prompt yang dinamis dan terstruktur untuk LLM."""
     
-    # Add SHAP analysis if available
+    pos_factors_str = "\n".join([f"- `{factor}` (Kontribusi: {weight:.3f})" for factor, weight in positive_features])
+    neg_factors_str = "\n".join([f"- `{factor}` (Kontribusi: {weight:.3f})" for factor, weight in negative_features])
+
     shap_section = ""
     if shap_analysis:
         shap_pos_str = "\n".join([f"- `{factor}` (Rata-rata SHAP: {weight:.4f})" for factor, weight in shap_analysis['positive_factors'][:5]])
         shap_neg_str = "\n".join([f"- `{factor}` (Rata-rata SHAP: {weight:.4f})" for factor, weight in shap_analysis['negative_factors'][:5]])
-        
         shap_section = f"""
-    **Analisis Global (SHAP) - Pola Umum Kegagalan Usaha Kecil:**
-    **Faktor Global Peningkat Risiko Kegagalan Usaha Kecil:**
-    {shap_pos_str}
-    **Faktor Global Penurun Risiko Kegagalan Usaha Kecil:**
-    {shap_neg_str}
-    """
+**Analisis Global (SHAP) - Pola Umum di Seluruh Wilayah:**
+* Faktor Global Peningkat Risiko: {shap_pos_str}
+* Faktor Global Penurun Risiko: {shap_neg_str}
+"""
     
-    prompt_content = f"""
+    lime_intro = (
+        "**Peringatan:** Analisis LIME gagal. Faktor-faktor berikut adalah perkiraan berdasarkan deviasi dari nilai median, bukan kontribusi model langsung." if lime_failed 
+        else "**Faktor-faktor Kunci dari Model (berdasarkan LIME - Analisis Lokal untuk Wilayah Ini):**"
+    )
+    
+    return f"""
     Anda adalah seorang analis ekonomi dan konsultan Usaha Kecil ahli yang ditugaskan untuk menjelaskan prediksi risiko kegagalan usaha kecil untuk seorang kepala daerah, pembuat kebijakan, atau lembaga pemberdayaan Usaha Kecil.
     
     Catatan : 
@@ -254,525 +227,239 @@ def generate_narrative_explanation(client, region, year, quarter, risk_score, po
 
     Gunakan bahasa yang profesional namun mudah dipahami oleh audiens non-teknis. Fokus pada konteks Usaha Kecil, seperti akses permodalan, daya beli masyarakat, infrastruktur bisnis, dan ekosistem kewirausahaan. Jika ada data SHAP yang tersedia, pastikan untuk mengintegrasikan insight global dengan analisis lokal LIME.
     """
+
+def generate_narrative_explanation(client, prompt):
+    """Memanggil API DeepSeek dan mengembalikan respons."""
+    if not client:
+        return "Layanan AI tidak dikonfigurasi."
     try:
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
-                {"role": "system", "content": "Anda adalah seorang analis ekonomi dan konsultan Usaha Kecil ahli."},
-                {"role": "user", "content": prompt_content}
+                {"role": "system", "content": "Anda adalah seorang analis ekonomi ahli yang fokus pada Usaha Kecil."},
+                {"role": "user", "content": prompt}
             ],
-            temperature=0.4,
-            max_tokens=2500
+            temperature=st.session_state.get('llm_temperature', 0.5),
+            max_tokens=st.session_state.get('llm_max_tokens', 2100)
         )
         return response.choices[0].message.content
     except Exception as e:
         return f"Terjadi kesalahan saat menghasilkan analisis AI dari DeepSeek: {str(e)}"
 
-# --- FUNGSI UTAMA STREAMLIT ---
-def main():
-    st.markdown('<div class="main-header">🏪 Small Business Failure Risk Predictor with XAI</div>', unsafe_allow_html=True)
+# ======================================================================================
+# FUNGSI-FUNGSI UNTUK MENAMPILKAN KOMPONEN UI
+# ======================================================================================
 
-    # --- MODIFIKASI: Konfigurasi Klien API untuk DeepSeek ---
-    try:
-        client = openai.OpenAI(
-            api_key=st.secrets["DEEPSEEK_API_KEY"],
-            base_url="https://api.deepseek.com/v1"
-        )
-        llm_configured = True
-    except Exception as e:
-        st.warning("⚠️ LLM DeepSeek tidak terkonfigurasi. Fitur Analisis AI tidak akan tersedia. Pastikan Anda mengatur DEEPSEEK_API_KEY di st.secrets.", icon="🤖")
-        client = None
-        llm_configured = False
-
-    model = load_model()
-    if model is None:
-        st.error("Gagal memuat model prediksi. Pastikan file pipeline ada.")
-        return
-
-    # Inisialisasi session state (tidak ada perubahan)
-    if 'shap_selected_region' not in st.session_state:
-        st.session_state.shap_selected_region = "All"
-    if 'shap_selected_year' not in st.session_state:
-        st.session_state.shap_selected_year = "All"
-    if 'shap_selected_quarter' not in st.session_state:
-        st.session_state.shap_selected_quarter = "All"
-    if 'selected_region' not in st.session_state:
-        st.session_state.selected_region = None
-    if 'selected_year' not in st.session_state:
-        st.session_state.selected_year = None
-    if 'selected_quarter' not in st.session_state:
-        st.session_state.selected_quarter = None
-    if 'shap_analysis' not in st.session_state:
-        st.session_state.shap_analysis = None
-
+def display_sidebar(df_is_loaded):
+    """Menampilkan semua elemen di sidebar."""
     with st.sidebar:
         st.markdown('<div class="sidebar-header">📁 Data Upload</div>', unsafe_allow_html=True)
-        uploaded_file = st.file_uploader("Upload file CSV data sosioekonomi untuk analisis risiko usaha kecil", type=['csv'])
+        uploaded_file = st.file_uploader("Upload file CSV data sosioekonomi", type=['csv'])
         
-        if uploaded_file:
-            st.success("✅ File berhasil diunggah!")
-        
+        if df_is_loaded:
+            if st.button("🔄 Analisis Data Baru"):
+                # Menghapus cache dan state untuk analisis baru
+                st.cache_data.clear()
+                for key in list(st.session_state.keys()):
+                    if key != 'llm_temperature' and key != 'llm_max_tokens':
+                        del st.session_state[key]
+                st.rerun()
+
         st.markdown("---")
-        st.markdown("### 📋 Format Data yang Dibutuhkan")
-        st.markdown("File CSV harus mengandung kolom:")
-        
-        with st.expander("📊 Daftar Kolom Wajib", expanded=False):
-            for i, col in enumerate(MODEL_FEATURES, 1):
-                st.write(f"{i}. `{col}`")
-            st.write("---")
-            st.write("**Kolom Metadata:**")
-            st.write("- `kabupaten_kota`")
-            st.write("- `tahun`") 
-            st.write("- `kuartal`")
-            st.write("- `Proksi Inflasi`")
-        
+        st.markdown("### 📋 Format Data")
+        with st.expander("Lihat Kolom Wajib"):
+            st.json({
+                "Fitur Model": MODEL_FEATURES,
+                "Metadata": ['kabupaten_kota', 'tahun', 'kuartal', 'Proksi Inflasi']
+            })
+
         st.markdown("---")
-        st.markdown("### 🤖 Fitur DeepSeek AI")
-        st.info("💡 **Analisis AI untuk Risiko Usaha Kecil:** Aplikasi ini menggunakan DeepSeek untuk analisis mendalam risiko kegagalan usaha kecil dengan fitur:")
-        st.markdown("""
-        - 🎯 **Analisis Individual**: Per wilayah dengan LIME + SHAP untuk prediksi kegagalan usaha kecil
-        - 📊 **Analisis Massal**: Batch analysis untuk multiple regions
-        - ⚙️ **Parameter Custom**: Temperature, max tokens, bahasa
-        - 📄 **Multiple Format**: Ringkasan, detail, atau fokus kebijakan Usaha Kecil
-        - 🌍 **Multi-bahasa**: Indonesia, English, atau Mixed
-        """)
-        
-        st.markdown("---")
-        st.markdown("### ℹ️ Tentang Model")
-        st.markdown("""
-        **🔬 XAI Pipeline untuk Prediksi Kegagalan Usaha Kecil:**
-        - **XGBoost**: Model prediksi utama untuk risiko kegagalan Usaha Kecil
-        - **SHAP**: Global feature importance & patterns yang mempengaruhi usaha kecil
-        - **LIME**: Local explanations per wilayah untuk kondisi spesifik Usaha Kecil
-        - **DeepSeek**: AI narrative analysis & insights untuk strategi pemberdayaan Usaha Kecil
-        
-        **📈 Workflow:**
-        1. Upload data → Prediksi risiko kegagalan usaha kecil
-        2. SHAP analysis → Pola global faktor kegagalan Usaha Kecil
-        3. LIME analysis → Penjelasan lokal per wilayah
-        4. DeepSeek AI → Insights dan rekomendasi pemberdayaan Usaha Kecil
-        """)
-    
-    if uploaded_file:
-        df = validate_csv(uploaded_file)
-        if df is not None:
-            st.success(f"Data berhasil divalidasi! Memuat {len(df)} baris.")
-            X = df[MODEL_FEATURES].copy()
-            # ... (logika validasi kolom tidak ada perubahan) ...
-            
-            if 'predictions_made' not in st.session_state: st.session_state.predictions_made = False
-            
-            if st.button("🚀 Buat Prediksi", type="primary"):
-                with st.spinner("Membuat prediksi dan menghasilkan penjelasan..."):
-                    try:
-                        predictions = model.predict(X)
-                        df_with_predictions = df.copy()
-                        df_with_predictions['Risk_Score'] = predictions
-                        st.session_state.predictions = predictions
-                        st.session_state.df_with_predictions = df_with_predictions
-                        st.session_state.predictions_made = True
-                    except Exception as e:
-                        st.error(f"Error saat prediksi: {e}")
-                        st.session_state.predictions_made = False
-            
-            if st.session_state.predictions_made:
-                df_with_predictions = st.session_state.df_with_predictions
-                predictions = st.session_state.predictions
+        st.markdown('<div class="sidebar-header">🤖 Konfigurasi AI</div>', unsafe_allow_html=True)
+        st.session_state.llm_temperature = st.slider("🌡️ Kreativitas (Temperature)", 0.1, 1.0, 0.4, 0.05)
+        st.session_state.llm_max_tokens = st.slider("📏 Panjang Respons (Tokens)", 500, 3000, 2000, 100)
+        st.session_state.analysis_language = st.selectbox("🌍 Bahasa Analisis", ["Bahasa Indonesia", "English"])
 
-                st.markdown('<div class="section-header">📈 Hasil Prediksi Risiko Kegagalan Usaha Kecil</div>', unsafe_allow_html=True)
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Rata-rata Skor Risiko Kegagalan Usaha Kecil", f"{np.mean(predictions):.3f}")
-                col2.metric("Skor Risiko Minimum", f"{np.min(predictions):.3f}")
-                col3.metric("Skor Risiko Maksimum", f"{np.max(predictions):.3f}")
+        return uploaded_file
 
-                with st.expander("📊 Tabel Prediksi Detail", expanded=False):
-                    st.dataframe(df_with_predictions[['kabupaten_kota', 'tahun', 'kuartal', 'Risk_Score']].sort_values('Risk_Score', ascending=False).rename(columns={'Risk_Score': 'Risiko_Kegagalan_Usaha_Kecil'}))
-                
-                # --- Bagian SHAP ---
-                st.markdown('<div class="section-header">🔍 Wawasan Explainable AI (XAI) untuk Risiko Usaha Kecil</div>', unsafe_allow_html=True)
-                st.markdown("#### 📊 Global Feature Importance (SHAP)")
-                st.markdown("*Memahami dampak global setiap faktor sosioekonomi terhadap risiko kegagalan usaha kecil*")
-                
-                # Generate SHAP explanations
-                with st.spinner("Menghasilkan analisis SHAP..."):
-                    shap_values = generate_shap_explanations(model, X, MODEL_FEATURES)
-                
-                if shap_values is not None:
-                    # Store SHAP values in session state for later use
-                    st.session_state.shap_values = shap_values
-                    st.session_state.X_for_shap = X
-                    
-                    # Global feature importance
-                    try:
-                        # Calculate mean absolute SHAP values for global importance
-                        if hasattr(shap_values, 'values'):
-                            shap_values_array = shap_values.values
-                        else:
-                            shap_values_array = shap_values
-                            
-                        mean_abs_shap = np.abs(shap_values_array).mean(0)
-                        feature_importance_df = pd.DataFrame({
-                            'Feature': MODEL_FEATURES,
-                            'Importance': mean_abs_shap
-                        }).sort_values('Importance', ascending=False)
-                        
-                        col1, col2 = st.columns([2, 1])
-                        
-                        with col1:
-                            # Bar plot of feature importance
-                            fig, ax = plt.subplots(figsize=(10, 8))
-                            bars = ax.barh(range(len(feature_importance_df)), feature_importance_df['Importance'])
-                            ax.set_yticks(range(len(feature_importance_df)))
-                            ax.set_yticklabels(feature_importance_df['Feature'])
-                            ax.set_xlabel('Mean |SHAP value|')
-                            ax.set_title('Global Feature Importance untuk Risiko Kegagalan Usaha Kecil (SHAP)')
-                            ax.grid(axis='x', alpha=0.3)
-                            
-                            # Color bars based on importance
-                            max_importance = feature_importance_df['Importance'].max()
-                            for i, bar in enumerate(bars):
-                                bar.set_color(plt.cm.viridis(feature_importance_df.iloc[i]['Importance'] / max_importance))
-                            
-                            plt.tight_layout()
-                            st.pyplot(fig)
-                            plt.close()
-                        
-                        with col2:
-                            st.markdown("**🏆 Top 10 Faktor Paling Berpengaruh terhadap Kegagalan Usaha Kecil:**")
-                            for idx, row in feature_importance_df.head(10).iterrows():
-                                st.write(f"**{idx+1}.** {row['Feature']}")
-                                st.write(f"   Skor: {row['Importance']:.4f}")
-                                st.write("---")
-                        
-                        # Filter options for SHAP analysis
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            region_options = ["All"] + sorted(df_with_predictions['kabupaten_kota'].unique().tolist())
-                            shap_region = st.selectbox("Filter by Region (SHAP)", options=region_options, 
-                                                     index=region_options.index(st.session_state.shap_selected_region))
-                            st.session_state.shap_selected_region = shap_region
-                        
-                        with col2:
-                            year_options = ["All"] + sorted(df_with_predictions['tahun'].unique().tolist())
-                            shap_year = st.selectbox("Filter by Year (SHAP)", options=year_options,
-                                                   index=year_options.index(st.session_state.shap_selected_year))
-                            st.session_state.shap_selected_year = shap_year
-                        
-                        with col3:
-                            quarter_options = ["All"] + sorted(df_with_predictions['kuartal'].unique().tolist())
-                            shap_quarter = st.selectbox("Filter by Quarter (SHAP)", options=quarter_options,
-                                                      index=quarter_options.index(st.session_state.shap_selected_quarter))
-                            st.session_state.shap_selected_quarter = shap_quarter
-                        
-                        # Filter data based on selection
-                        shap_filtered_df = df_with_predictions.copy()
-                        shap_filter_indices = list(range(len(df_with_predictions)))
-                        
-                        if shap_region != "All":
-                            mask = shap_filtered_df['kabupaten_kota'] == shap_region
-                            shap_filtered_df = shap_filtered_df[mask]
-                            shap_filter_indices = [i for i, include in enumerate(mask) if include]
-                        
-                        if shap_year != "All":
-                            mask = shap_filtered_df['tahun'] == shap_year
-                            shap_filtered_df = shap_filtered_df[mask]
-                            shap_filter_indices = [shap_filter_indices[i] for i, include in enumerate(mask) if include]
-                        
-                        if shap_quarter != "All":
-                            mask = shap_filtered_df['kuartal'] == shap_quarter
-                            shap_filtered_df = shap_filtered_df[mask]
-                            shap_filter_indices = [shap_filter_indices[i] for i, include in enumerate(mask) if include]
-                        
-                        if len(shap_filter_indices) > 0:
-                            # Summary plot for filtered data
-                            if len(shap_filter_indices) > 1:
-                                st.markdown("**📈 SHAP Summary Plot (Data Terfilter):**")
-                                try:
-                                    # Try to create SHAP summary plot
-                                    shap_subset = shap_values[shap_filter_indices]
-                                    shap.summary_plot(shap_subset, X.iloc[shap_filter_indices], 
-                                                    feature_names=MODEL_FEATURES, show=False)
-                                    st.pyplot(plt.gcf())
-                                    plt.close()
-                                except Exception as e:
-                                    st.warning(f"SHAP summary plot tidak dapat dibuat: {e}")
-                                    st.info("Menampilkan visualisasi alternatif...")
-                                    
-                                    # Alternative visualization: Feature importance bar plot
-                                    if hasattr(shap_values, 'values'):
-                                        filtered_shap_values = shap_values.values[shap_filter_indices]
-                                    else:
-                                        filtered_shap_values = shap_values[shap_filter_indices]
-                                    
-                                    mean_abs_shap_filtered = np.abs(filtered_shap_values).mean(0)
-                                    
-                                    fig, ax = plt.subplots(figsize=(10, 8))
-                                    feature_importance_filtered = pd.DataFrame({
-                                        'Feature': MODEL_FEATURES,
-                                        'Importance': mean_abs_shap_filtered
-                                    }).sort_values('Importance', ascending=True)
-                                    
-                                    bars = ax.barh(range(len(feature_importance_filtered)), 
-                                                 feature_importance_filtered['Importance'])
-                                    ax.set_yticks(range(len(feature_importance_filtered)))
-                                    ax.set_yticklabels(feature_importance_filtered['Feature'])
-                                    ax.set_xlabel('Mean |SHAP value| (Filtered Data)')
-                                    ax.set_title('Feature Importance for Filtered Data')
-                                    ax.grid(axis='x', alpha=0.3)
-                                    
-                                    # Color bars
-                                    max_importance = feature_importance_filtered['Importance'].max()
-                                    for i, bar in enumerate(bars):
-                                        bar.set_color(plt.cm.viridis(feature_importance_filtered.iloc[i]['Importance'] / max_importance))
-                                    
-                                    plt.tight_layout()
-                                    st.pyplot(fig)
-                                    plt.close()
-                            
-                            # Calculate average SHAP values for filtered data
-                            if hasattr(shap_values, 'values'):
-                                filtered_shap_values = shap_values.values[shap_filter_indices]
-                            else:
-                                filtered_shap_values = shap_values[shap_filter_indices]
-                            
-                            avg_shap = np.mean(filtered_shap_values, axis=0)
-                            
-                            # Store filtered SHAP analysis for AI
-                            shap_analysis = {
-                                'positive_factors': [(MODEL_FEATURES[i], avg_shap[i]) for i in range(len(MODEL_FEATURES)) if avg_shap[i] > 0],
-                                'negative_factors': [(MODEL_FEATURES[i], avg_shap[i]) for i in range(len(MODEL_FEATURES)) if avg_shap[i] < 0]
-                            }
-                            shap_analysis['positive_factors'].sort(key=lambda x: x[1], reverse=True)
-                            shap_analysis['negative_factors'].sort(key=lambda x: x[1])
-                            
-                            st.session_state.shap_analysis = shap_analysis
-                            
-                            # Display top factors from SHAP
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.markdown("**🔴 Faktor Global Peningkat Risiko Kegagalan Usaha Kecil (SHAP):**")
-                                for feature, weight in shap_analysis['positive_factors'][:5]:
-                                    st.markdown(f'<div class="risk-increasing"><strong>{feature}</strong><br/>Avg SHAP: <strong>+{weight:.4f}</strong></div>', unsafe_allow_html=True)
-                            
-                            with col2:
-                                st.markdown("**🟢 Faktor Global Penurun Risiko Kegagalan Usaha Kecil (SHAP):**")
-                                for feature, weight in shap_analysis['negative_factors'][:5]:
-                                    st.markdown(f'<div class="risk-decreasing"><strong>{feature}</strong><br/>Avg SHAP: <strong>{weight:.4f}</strong></div>', unsafe_allow_html=True)
-                        
-                        else:
-                            st.warning("Tidak ada data yang sesuai dengan filter yang dipilih.")
-                    
-                    except Exception as e:
-                        st.error(f"Error dalam analisis SHAP: {e}")
-                
-                else:
-                    st.warning("SHAP analysis tidak dapat dibuat. Melanjutkan dengan analisis LIME saja.")
-
-                # --- Bagian LIME dengan Integrasi LLM ---
-                st.markdown("#### 🔎 Penjelasan Lokal (LIME)")
-                st.markdown("*Memahami prediksi individual risiko kegagalan Usaha Kecil untuk wilayah dan periode waktu tertentu*")
-                
-                col1, col2, col3 = st.columns(3)
-                unique_regions = sorted(df_with_predictions['kabupaten_kota'].unique())
-                unique_years = sorted(df_with_predictions['tahun'].unique())
-                unique_quarters = sorted(df_with_predictions['kuartal'].unique())
-                
-                # ... (logika pemilihan instance LIME Anda tetap di sini) ...
-                with col1:
-                    st.session_state.selected_region = st.selectbox("Pilih Kabupaten/Kota", options=unique_regions, index=0 if st.session_state.selected_region is None else unique_regions.index(st.session_state.selected_region))
-                with col2:
-                    st.session_state.selected_year = st.selectbox("Pilih Tahun", options=unique_years, index=len(unique_years)-1 if st.session_state.selected_year is None else unique_years.index(st.session_state.selected_year))
-                with col3:
-                    st.session_state.selected_quarter = st.selectbox("Pilih Kuartal", options=unique_quarters, index=0 if st.session_state.selected_quarter is None else unique_quarters.index(st.session_state.selected_quarter))
-
-                filtered_df = df_with_predictions[
-                    (df_with_predictions['kabupaten_kota'] == st.session_state.selected_region) & 
-                    (df_with_predictions['tahun'] == st.session_state.selected_year) & 
-                    (df_with_predictions['kuartal'] == st.session_state.selected_quarter)
-                ]
-                
-                if not filtered_df.empty:
-                    instance_idx = filtered_df.index[0]
-                    predicted_risk = predictions[instance_idx]
-                    lime_exp = generate_lime_explanation(model, X, instance_idx, MODEL_FEATURES)
-                    
-                    if lime_exp:
-                        st.markdown(f"**📋 Analisis Dampak Faktor Risiko Usaha Kecil untuk {st.session_state.selected_region} - Q{st.session_state.selected_quarter} {st.session_state.selected_year}**")
-                        st.info(f"Skor Risiko Kegagalan Usaha Kecil: **{predicted_risk:.3f}**")
-                        
-                        exp_list = lime_exp.as_list()
-                        positive_features = sorted([(f, w) for f, w in exp_list if w > 0], key=lambda item: item[1], reverse=True)
-                        negative_features = sorted([(f, w) for f, w in exp_list if w < 0], key=lambda item: item[1])
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.markdown("**🔴 Faktor Peningkat Risiko Kegagalan Usaha Kecil:**")
-                            for feature, weight in positive_features:
-                                st.markdown(f'<div class="risk-increasing"><strong>{feature}</strong><br/>Dampak: <strong>+{weight:.3f}</strong></div>', unsafe_allow_html=True)
-                        with col2:
-                            st.markdown("**🟢 Faktor Penurun Risiko Kegagalan Usaha Kecil:**")
-                            for feature, weight in negative_features:
-                                st.markdown(f'<div class="risk-decreasing"><strong>{feature}</strong><br/>Dampak: <strong>{weight:.3f}</strong></div>', unsafe_allow_html=True)
-
-                        # --- MODIFIKASI: Tombol dan Tampilan Analisis AI ---
-                        st.markdown("---")
-                        if llm_configured:
-                            btn_key = f"ai_btn_{instance_idx}"
-                            if st.button("🤖 Buat Analisis Naratif Risiko Usaha Kecil dengan AI", key=btn_key):
-                                with st.spinner("🧠 AI sedang menyusun laporan analisis risiko kegagalan Usaha Kecil..."):
-                                    # Get SHAP analysis if available
-                                    shap_analysis = st.session_state.get('shap_analysis', None)
-                                    
-                                    narrative = generate_narrative_explanation(
-                                        client, # Menggunakan klien DeepSeek
-                                        st.session_state.selected_region,
-                                        st.session_state.selected_year,
-                                        st.session_state.selected_quarter,
-                                        predicted_risk,
-                                        positive_features,
-                                        negative_features,
-                                        shap_analysis  # Tambahkan data SHAP
-                                    )
-                                    st.session_state[f'narrative_{instance_idx}'] = narrative
-                            
-                            # Tampilkan narasi jika ada
-                            if f'narrative_{instance_idx}' in st.session_state:
-                                st.markdown("### 💡 Laporan Analisis AI - Risiko Kegagalan Usaha Kecil")
-                                # Add information about data sources
-                                st.info("📊 **Sumber Analisis:** Laporan ini mengombinasikan analisis LIME (spesifik wilayah) dan SHAP (pola global) untuk memberikan pemahaman komprehensif tentang risiko kegagalan usaha kecil.")
-                                st.markdown(st.session_state[f'narrative_{instance_idx}'], unsafe_allow_html=True)
-                        # --- Akhir Modifikasi ---
-                    
-                    else:
-                        st.warning("Penjelasan LIME tidak dapat dibuat. Menampilkan nilai fitur mentah.")
-                        
-                        # Fallback: Display raw feature values
-                        st.markdown("**📊 Nilai Fitur untuk Instance Ini:**")
-                        instance_data = X.iloc[instance_idx]
-                        
-                        col1, col2 = st.columns(2)
-                        mid_point = len(MODEL_FEATURES) // 2
-                        
-                        with col1:
-                            for feature in MODEL_FEATURES[:mid_point]:
-                                st.metric(feature, f"{instance_data[feature]:.3f}")
-                        
-                        with col2:
-                            for feature in MODEL_FEATURES[mid_point:]:
-                                st.metric(feature, f"{instance_data[feature]:.3f}")
-                        
-                        # Still show AI analysis if available, but without LIME factors
-                        if llm_configured:
-                            st.markdown("---")
-                            fallback_btn_key = f"ai_fallback_btn_{instance_idx}"
-                            if st.button("🤖 Buat Analisis Dasar Risiko Usaha Kecil dengan AI", key=fallback_btn_key):
-                                with st.spinner("🧠 AI sedang menganalisis risiko Usaha Kecil berdasarkan data mentah..."):
-                                    # Create simple positive/negative factors based on feature values
-                                    median_values = X.median()
-                                    simple_factors = []
-                                    
-                                    for feature in MODEL_FEATURES:
-                                        value = instance_data[feature]
-                                        median_val = median_values[feature]
-                                        diff = (value - median_val) / median_val if median_val != 0 else 0
-                                        simple_factors.append((feature, diff))
-                                    
-                                    # Split into positive and negative based on deviation from median
-                                    simple_positive = [(f, w) for f, w in simple_factors if w > 0]
-                                    simple_negative = [(f, w) for f, w in simple_factors if w < 0]
-                                    
-                                    shap_analysis = st.session_state.get('shap_analysis', None)
-                                    
-                                    narrative = generate_narrative_explanation(
-                                        client,
-                                        st.session_state.selected_region,
-                                        st.session_state.selected_year,
-                                        st.session_state.selected_quarter,
-                                        predicted_risk,
-                                        simple_positive[:5],  # Top 5 above median
-                                        simple_negative[:5], # Top 5 below median
-                                        shap_analysis
-                                    )
-                                    st.session_state[f'fallback_narrative_{instance_idx}'] = narrative
-                            
-                            if f'fallback_narrative_{instance_idx}' in st.session_state:
-                                st.markdown("### 💡 Laporan Analisis AI - Risiko Kegagalan Usaha Kecil (Berbasis Data Mentah)")
-                                st.warning("⚠️ Analisis ini berbasis perbandingan dengan nilai median karena LIME tidak tersedia.")
-                                st.markdown(st.session_state[f'fallback_narrative_{instance_idx}'], unsafe_allow_html=True)
-                
-                else:
-                    st.warning(f"Tidak ada data untuk {st.session_state.selected_region} pada Q{st.session_state.selected_quarter} {st.session_state.selected_year}")
-
-                # --- Bagian Konfigurasi dan Penggunaan LLM DeepSeek ---
-                
-                st.markdown('<div class="section-header">🤖 Konfigurasi LLM DeepSeek</div>', unsafe_allow_html=True)
-                
-                col1, col2 = st.columns([1, 1])
-                
-                with col1:
-                    st.markdown("**🔧 Status Konfigurasi DeepSeek**")
-                    if llm_configured:
-                        st.success("✅ DeepSeek API terkonfigurasi dengan baik")
-                        st.info("🎯 **Model:** deepseek-chat")
-                        st.info("🌐 **Endpoint:** https://api.deepseek.com/v1")
-                        
-                        # Test connection button
-                        if st.button("🔍 Test Koneksi DeepSeek"):
-                            with st.spinner("Testing koneksi ke DeepSeek API..."):
-                                try:
-                                    test_response = client.chat.completions.create(
-                                        model="deepseek-chat",
-                                        messages=[
-                                            {"role": "system", "content": "You are a helpful assistant."},
-                                            {"role": "user", "content": "Hello, can you confirm this connection is working?"}
-                                        ],
-                                        max_tokens=50,
-                                        temperature=0.3
-                                    )
-                                    st.success("🎉 Koneksi berhasil! DeepSeek merespons dengan baik.")
-                                    st.code(test_response.choices[0].message.content)
-                                except Exception as e:
-                                    st.error(f"❌ Test koneksi gagal: {e}")
-                    else:
-                        st.error("❌ DeepSeek API belum dikonfigurasi")
-                        st.markdown("""
-                        **Cara Konfigurasi:**
-                        1. Dapatkan API key dari [DeepSeek Platform](https://platform.deepseek.com/)
-                        2. Tambahkan ke `st.secrets`:
-                        ```toml
-                        [secrets]
-                        DEEPSEEK_API_KEY = "your-api-key-here"
-                        ```
-                        """)
-                
-                with col2:
-                    st.markdown("**⚙️ Parameter LLM**")
-                    
-                    # LLM Parameters
-                    temperature = st.slider("🌡️ Temperature", 0.0, 1.0, 0.7, 0.1, 
-                                          help="Kontrol kreativitas respons (0=deterministik, 1=kreatif)")
-                    max_tokens = st.slider("📏 Max Tokens", 500, 3000, 1500, 100,
-                                         help="Maksimum panjang respons AI")
-                    
-                    # Store in session state
-                    st.session_state.llm_temperature = temperature
-                    st.session_state.llm_max_tokens = max_tokens
-                    
-                    # Analysis language preference
-                    analysis_language = st.selectbox("🌍 Bahasa Analisis", 
-                                                    ["Bahasa Indonesia", "English", "Mixed (ID/EN)"],
-                                                    help="Bahasa untuk laporan analisis AI")
-                    st.session_state.analysis_language = analysis_language
-                
-    else:
-        # --- Halaman Sambutan (tidak ada perubahan) ---
-        st.markdown("""
+def display_welcome_page():
+    """Menampilkan halaman sambutan jika belum ada file yang diunggah."""
+    st.markdown("""
         <div class="info-card">
             <h3>👋 Selamat Datang di Prediktor Risiko Kegagalan Usaha Kecil!</h3>
-            <p><em>Analitik machine learning canggih untuk penilaian risiko kegagalan Usaha Kecil berbasis faktor sosioekonomi. Unggah data Anda di sidebar untuk memulai analisis.</em></p>
-            <p><strong>🎯 Fokus:</strong> Prediksi dan analisis risiko kegagalan usaha kecil untuk mendukung kebijakan pemberdayaan Usaha Kecil yang tepat sasaran.</p>
+            <p>Unggah data sosioekonomi Anda di sidebar kiri untuk memulai analisis prediktif dan mendapatkan wawasan mendalam dengan Explainable AI (XAI) dan Generative AI.</p>
         </div>
-        """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
+
+def display_prediction_overview(df_pred):
+    """Menampilkan ringkasan hasil prediksi."""
+    st.markdown('<div class="section-header">📈 Hasil Prediksi Risiko</div>', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Rata-rata Skor Risiko", f"{df_pred['Risk_Score'].mean():.3f}")
+    col2.metric("Skor Risiko Minimum", f"{df_pred['Risk_Score'].min():.3f}")
+    col3.metric("Skor Risiko Maksimum", f"{df_pred['Risk_Score'].max():.3f}")
+
+    with st.expander("📊 Tabel Prediksi Detail (Dapat Diurutkan)", expanded=False):
+        st.dataframe(
+            df_pred[['kabupaten_kota', 'tahun', 'kuartal', 'Risk_Score']]
+            .sort_values('Risk_Score', ascending=False)
+            .rename(columns={'Risk_Score': 'Risiko_Kegagalan'})
+        )
+
+def display_shap_analysis(X, shap_values):
+    """Menampilkan analisis SHAP (global)."""
+    st.markdown('<div class="section-header">🔍 Analisis Global (SHAP)</div>', unsafe_allow_html=True)
+    st.info("SHAP (SHapley Additive exPlanations) menunjukkan kontribusi rata-rata setiap fitur terhadap prediksi di seluruh dataset. Ini membantu mengidentifikasi faktor-faktor paling berpengaruh secara umum.", icon="💡")
+    
+    if shap_values is None:
+        st.warning("Analisis SHAP tidak tersedia.")
+        return
+
+    # Global Feature Importance
+    fig, ax = plt.subplots()
+    shap.summary_plot(shap_values, X, plot_type="bar", show=False)
+    plt.title("Pentingnya Fitur Global untuk Risiko Kegagalan Usaha Kecil")
+    st.pyplot(fig)
+    
+    st.markdown("---")
+
+    # SHAP Summary Plot
+    st.markdown("#### Dampak Fitur Individual")
+    st.write("Plot ini menunjukkan bagaimana nilai sebuah fitur (warna) mempengaruhi prediksi (posisi pada sumbu x). Merah berarti nilai fitur tinggi, biru berarti rendah.")
+    fig, ax = plt.subplots()
+    shap.summary_plot(shap_values, X, show=False)
+    st.pyplot(fig)
+
+def display_lime_and_ai_analysis(model, X, df_pred, client):
+    """Menampilkan analisis LIME (lokal) dan integrasi AI."""
+    st.markdown('<div class="section-header">🎯 Analisis Lokal (LIME) & Wawasan AI</div>', unsafe_allow_html=True)
+    st.info("LIME (Local Interpretable Model-agnostic Explanations) menjelaskan prediksi untuk **satu data point spesifik**. Pilih wilayah dan periode di bawah untuk melihat faktor apa yang mendorong risikonya.", icon="💡")
+
+    col1, col2, col3 = st.columns(3)
+    unique_regions = sorted(df_pred['kabupaten_kota'].unique())
+    unique_years = sorted(df_pred['tahun'].unique())
+    unique_quarters = sorted(df_pred['kuartal'].unique())
+
+    selected_region = col1.selectbox("Pilih Kabupaten/Kota", unique_regions)
+    selected_year = col2.selectbox("Pilih Tahun", unique_years)
+    selected_quarter = col3.selectbox("Pilih Kuartal", unique_quarters)
+
+    # Cari instance yang sesuai
+    instance_df = df_pred[
+        (df_pred['kabupaten_kota'] == selected_region) & 
+        (df_pred['tahun'] == selected_year) & 
+        (df_pred['kuartal'] == selected_quarter)
+    ]
+
+    if instance_df.empty:
+        st.warning("Tidak ada data untuk kombinasi yang dipilih.")
+        return
+
+    instance_idx = instance_df.index[0]
+    predicted_risk = instance_df.iloc[0]['Risk_Score']
+    
+    st.subheader(f"Analisis untuk: {selected_region} (Q{selected_quarter} {selected_year})")
+    st.metric("Prediksi Skor Risiko", f"{predicted_risk:.3f}")
+    
+    lime_exp = generate_lime_explanation(model, X, instance_idx)
+    
+    if lime_exp:
+        exp_list = lime_exp.as_list()
+        positive_features = sorted([(f, w) for f, w in exp_list if w > 0], key=lambda i: i[1], reverse=True)
+        negative_features = sorted([(f, w) for f, w in exp_list if w < 0], key=lambda i: i[1])
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**🔴 Faktor Peningkat Risiko (Lokal)**")
+            for feature, weight in positive_features:
+                st.markdown(f'<div class="risk-increasing"><strong>{feature}</strong><br/>Dampak: <strong>+{weight:.3f}</strong></div>', unsafe_allow_html=True)
+        with col2:
+            st.markdown("**🟢 Faktor Penurun Risiko (Lokal)**")
+            for feature, weight in negative_features:
+                st.markdown(f'<div class="risk-decreasing"><strong>{feature}</strong><br/>Dampak: <strong>{weight:.3f}</strong></div>', unsafe_allow_html=True)
+        
+        # Integrasi AI
+        if client:
+            if st.button("🤖 Buat Analisis Naratif dengan AI", key=f"ai_{instance_idx}"):
+                with st.spinner("🧠 AI sedang menyusun laporan..."):
+                    shap_analysis = st.session_state.get('shap_analysis_summary')
+                    prompt = build_ai_prompt(selected_region, selected_year, selected_quarter, predicted_risk,
+                                             positive_features, negative_features, shap_analysis, st.session_state.analysis_language)
+                    narrative = generate_narrative_explanation(client, prompt)
+                    st.session_state[f'narrative_{instance_idx}'] = narrative
+    else:
+        # Fallback jika LIME gagal
+        st.warning("LIME gagal, analisis AI akan menggunakan perbandingan data mentah dengan median.")
+        instance_data = X.loc[instance_idx]
+        median_values = X.median()
+        diffs = (instance_data - median_values) / median_values
+        
+        positive_features = sorted([(f, v) for f, v in diffs.items() if v > 0], key=lambda i: i[1], reverse=True)
+        negative_features = sorted([(f, v) for f, v in diffs.items() if v < 0], key=lambda i: i[1])
+
+        if client:
+             if st.button("🤖 Buat Analisis Naratif dengan AI (Fallback)", key=f"ai_fallback_{instance_idx}"):
+                with st.spinner("🧠 AI sedang menyusun laporan..."):
+                    shap_analysis = st.session_state.get('shap_analysis_summary')
+                    prompt = build_ai_prompt(selected_region, selected_year, selected_quarter, predicted_risk,
+                                             positive_features, negative_features, shap_analysis, st.session_state.analysis_language, lime_failed=True)
+                    narrative = generate_narrative_explanation(client, prompt)
+                    st.session_state[f'narrative_{instance_idx}'] = narrative
+
+    if f'narrative_{instance_idx}' in st.session_state:
+        st.markdown("---")
+        st.markdown("### 💡 Laporan Analisis AI")
+        st.markdown(st.session_state[f'narrative_{instance_idx}'])
+
+# ======================================================================================
+# FUNGSI UTAMA (MAIN)
+# ======================================================================================
+
+def main():
+    st.markdown('<div class="main-header">🏪 Prediktor Risiko Kegagalan Usaha Kecil dengan XAI</div>', unsafe_allow_html=True)
+    
+    model = load_model()
+    client, llm_configured = get_ai_client()
+    
+    if not llm_configured:
+        st.warning("⚠️ Kunci API DeepSeek tidak terkonfigurasi. Fitur Analisis AI tidak akan tersedia. Atur `DEEPSEEK_API_KEY` di `st.secrets`.", icon="🤖")
+
+    if model is None:
+        st.error("Gagal memuat model. Aplikasi tidak dapat berjalan.")
+        return
+
+    # Menggunakan session state untuk menyimpan df agar tidak hilang saat interaksi
+    if 'processed_df' not in st.session_state:
+        st.session_state.processed_df = None
+    
+    uploaded_file = display_sidebar(st.session_state.processed_df is not None)
+
+    if uploaded_file is not None:
+        st.session_state.processed_df = validate_and_process_csv(uploaded_file)
+    
+    if st.session_state.processed_df is not None:
+        df = st.session_state.processed_df
+        df_with_predictions, X, shap_values = run_predictions_and_shap(model, df)
+        
+        # Menyimpan ringkasan SHAP untuk prompt AI
+        if shap_values is not None and 'shap_analysis_summary' not in st.session_state:
+             avg_shap = np.mean(shap_values.values, axis=0)
+             shap_analysis_summary = {
+                'positive_factors': sorted([(MODEL_FEATURES[i], avg_shap[i]) for i in np.where(avg_shap > 0)[0]], key=lambda x: x[1], reverse=True),
+                'negative_factors': sorted([(MODEL_FEATURES[i], avg_shap[i]) for i in np.where(avg_shap < 0)[0]], key=lambda x: x[1])
+             }
+             st.session_state.shap_analysis_summary = shap_analysis_summary
+
+        # Tampilan menggunakan Tabs untuk UX yang lebih baik
+        tab1, tab2, tab3 = st.tabs(["📊 Ringkasan Prediksi", "🌍 Analisis Global (SHAP)", "🎯 Analisis Lokal & AI"])
+
+        with tab1:
+            display_prediction_overview(df_with_predictions)
+        with tab2:
+            display_shap_analysis(X, shap_values)
+        with tab3:
+            display_lime_and_ai_analysis(model, X, df_with_predictions, client)
+    else:
+        display_welcome_page()
 
 if __name__ == "__main__":
     main()
