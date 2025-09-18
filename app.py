@@ -374,7 +374,7 @@ def display_lime_and_ai_analysis(model, X, df_pred, client):
                 with st.spinner("🧠 AI sedang menyusun laporan..."):
                     shap_analysis = st.session_state.get('shap_analysis_summary')
                     prompt = build_ai_prompt(selected_region, selected_year, selected_quarter, predicted_risk,
-                                             positive_features, negative_features, shap_analysis, st.session_state.analysis_language)
+                                             positive_features, negative_features, shap_analysis)
                     narrative = generate_narrative_explanation(client, prompt)
                     st.session_state[f'narrative_{instance_idx}'] = narrative
     else:
