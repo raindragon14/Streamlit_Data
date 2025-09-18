@@ -222,7 +222,11 @@ def generate_narrative_explanation(client, region, year, quarter, risk_score, po
     
     prompt_content = f"""
     Anda adalah seorang analis ekonomi dan konsultan Usaha Kecil ahli yang ditugaskan untuk menjelaskan prediksi risiko kegagalan usaha kecil untuk seorang kepala daerah, pembuat kebijakan, atau lembaga pemberdayaan Usaha Kecil.
-    Catatan : "Persentase Penduduk" dihitung dengan (jumlah penduduk di wilayah itu)/jumlah penduduk Jawa Timur lalu dikalikan dengan 100%
+    
+    Catatan : 
+    1. "Persentase Penduduk" dihitung dengan (jumlah penduduk di wilayah itu)/jumlah penduduk Jawa Timur lalu dikalikan dengan 100%
+    2. "investasi_per_kapita" dihitung dengan jumlah investasi pada wilayah tersebut dibagi dengan jumlah tenaga kerja
+    
     **Konteks Analisis:**
     - **Wilayah:** {region}
     - **Periode:** Kuartal {quarter}, Tahun {year}
@@ -257,71 +261,12 @@ def generate_narrative_explanation(client, region, year, quarter, risk_score, po
                 {"role": "system", "content": "Anda adalah seorang analis ekonomi dan konsultan Usaha Kecil ahli."},
                 {"role": "user", "content": prompt_content}
             ],
-            temperature=0.7,
-            max_tokens=1500
+            temperature=0.4,
+            max_tokens=2500
         )
         return response.choices[0].message.content
     except Exception as e:
         return f"Terjadi kesalahan saat menghasilkan analisis AI dari DeepSeek: {str(e)}"
-
-def generate_narrative_explanation_custom(client, region, year, quarter, risk_score, positive_features, negative_features, shap_analysis=None, format_instruction="", language="Bahasa Indonesia", temperature=0.7, max_tokens=1500):
-    """Generate a custom narrative explanation with specific parameters."""
-    if not client:
-        return "Layanan AI tidak dikonfigurasi."
-
-    pos_factors_str = "\n".join([f"- `{factor}` (Kontribusi: {weight:.3f})" for factor, weight in positive_features])
-    neg_factors_str = "\n".join([f"- `{factor}` (Kontribusi: {weight:.3f})" for factor, weight in negative_features])
-    
-    # Add SHAP analysis if available
-    shap_section = ""
-    if shap_analysis:
-        shap_pos_str = "\n".join([f"- `{factor}` (Rata-rata SHAP: {weight:.4f})" for factor, weight in shap_analysis['positive_factors'][:3]])
-        shap_neg_str = "\n".join([f"- `{factor}` (Rata-rata SHAP: {weight:.4f})" for factor, weight in shap_analysis['negative_factors'][:3]])
-        
-        shap_section = f"""
-    **Pola Global Kegagalan Usaha Kecil (SHAP):**
-    **Peningkat Risiko Global:** {shap_pos_str}
-    **Penurun Risiko Global:** {shap_neg_str}
-    """
-    
-    # Language instruction
-    language_instruction = ""
-    if language == "English":
-        language_instruction = "Please write the analysis in English."
-    elif language == "Mixed (ID/EN)":
-        language_instruction = "Use mixed Indonesian and English, with technical terms in English but explanations in Indonesian."
-    else:
-        language_instruction = "Tulis analisis dalam Bahasa Indonesia."
-    
-    prompt_content = f"""
-    Anda adalah analis ekonomi dan konsultan Usaha Kecil ahli. {language_instruction}
-    
-    **Analisis Risiko Kegagalan Usaha Kecil untuk:** {region} - Q{quarter} {year}
-    **Skor Risiko Kegagalan Usaha Kecil:** {risk_score:.3f}
-    
-    **Faktor Lokal (LIME):**
-    **Peningkat Risiko Kegagalan Usaha Kecil:** {pos_factors_str}
-    **Penurun Risiko Kegagalan Usaha Kecil:** {neg_factors_str}
-    {shap_section}
-    
-    **Instruksi Format:** {format_instruction}
-    
-    Buat analisis yang fokus dan actionable untuk pemberdayaan Usaha Kecil berdasarkan format yang diminta. Fokus pada faktor-faktor yang mempengaruhi keberhasilan atau kegagalan usaha kecil seperti akses permodalan, daya beli masyarakat, infrastruktur bisnis, dan dukungan pemerintah.
-    """
-    
-    try:
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": f"Anda adalah analis ekonomi dan konsultan Usaha Kecil ahli. {language_instruction}"},
-                {"role": "user", "content": prompt_content}
-            ],
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Error generating analysis: {str(e)}"
 
 # --- FUNGSI UTAMA STREAMLIT ---
 def main():
@@ -759,6 +704,7 @@ def main():
                     st.warning(f"Tidak ada data untuk {st.session_state.selected_region} pada Q{st.session_state.selected_quarter} {st.session_state.selected_year}")
 
                 # --- Bagian Konfigurasi dan Penggunaan LLM DeepSeek ---
+                
                 st.markdown('<div class="section-header">🤖 Konfigurasi LLM DeepSeek</div>', unsafe_allow_html=True)
                 
                 col1, col2 = st.columns([1, 1])
@@ -817,151 +763,6 @@ def main():
                                                     ["Bahasa Indonesia", "English", "Mixed (ID/EN)"],
                                                     help="Bahasa untuk laporan analisis AI")
                     st.session_state.analysis_language = analysis_language
-                
-                # Bulk Analysis Feature
-                st.markdown("**📊 Analisis Massal Risiko Usaha Kecil dengan DeepSeek**")
-                st.markdown("*Buat analisis AI untuk risiko kegagalan Usaha Kecil di semua wilayah atau kategori tertentu*")
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    bulk_analysis_type = st.selectbox("Jenis Analisis Massal",
-                                                     ["Top 5 Risiko Kegagalan Usaha Kecil Tertinggi", "Top 5 Risiko Kegagalan Usaha Kecil Terendah", 
-                                                      "Semua Wilayah", "Per Tahun", "Per Kuartal"])
-                
-                with col2:
-                    if bulk_analysis_type in ["Per Tahun", "Per Kuartal"]:
-                        available_years = sorted(df_with_predictions['tahun'].unique())
-                        selected_year_bulk = st.selectbox("Pilih Tahun", available_years)
-                    else:
-                        selected_year_bulk = None
-                
-                with col3:
-                    analysis_format = st.selectbox("Format Output",
-                                                  ["Ringkasan Eksekutif", "Laporan Detail", "Rekomendasi Kebijakan Usaha Kecil"])
-                
-                if st.button("🚀 Mulai Analisis Massal", type="primary"):
-                    if not llm_configured:
-                        st.error("DeepSeek API harus dikonfigurasi terlebih dahulu!")
-                    else:
-                        with st.spinner("🧠 DeepSeek sedang menganalisis risiko kegagalan Usaha Kecil secara massal..."):
-                            bulk_results = []
-                            
-                            # Filter data based on analysis type
-                            if bulk_analysis_type == "Top 5 Risiko Kegagalan Usaha Kecil Tertinggi":
-                                top_risk = df_with_predictions.nlargest(5, 'Risk_Score')
-                                analysis_data = top_risk
-                            elif bulk_analysis_type == "Top 5 Risiko Kegagalan Usaha Kecil Terendah":
-                                low_risk = df_with_predictions.nsmallest(5, 'Risk_Score')
-                                analysis_data = low_risk
-                            elif bulk_analysis_type == "Per Tahun":
-                                analysis_data = df_with_predictions[df_with_predictions['tahun'] == selected_year_bulk]
-                            elif bulk_analysis_type == "Per Kuartal":
-                                analysis_data = df_with_predictions[df_with_predictions['tahun'] == selected_year_bulk]
-                            else:  # Semua Wilayah
-                                analysis_data = df_with_predictions.sample(min(10, len(df_with_predictions)))  # Limit to 10 for performance
-                            
-                            progress_bar = st.progress(0)
-                            total_analyses = len(analysis_data)
-                            
-                            for idx, (_, row) in enumerate(analysis_data.iterrows()):
-                                try:
-                                    # Get LIME explanation for this instance
-                                    instance_idx = row.name
-                                    lime_exp = generate_lime_explanation(model, X, instance_idx, MODEL_FEATURES)
-                                    
-                                    if lime_exp:
-                                        exp_list = lime_exp.as_list()
-                                        positive_features = sorted([(f, w) for f, w in exp_list if w > 0], 
-                                                                 key=lambda item: item[1], reverse=True)[:3]
-                                        negative_features = sorted([(f, w) for f, w in exp_list if w < 0], 
-                                                                 key=lambda item: item[1])[:3]
-                                    else:
-                                        # Fallback to simple analysis
-                                        median_values = X.median()
-                                        instance_data = X.iloc[instance_idx]
-                                        simple_factors = []
-                                        
-                                        for feature in MODEL_FEATURES:
-                                            value = instance_data[feature]
-                                            median_val = median_values[feature]
-                                            diff = (value - median_val) / median_val if median_val != 0 else 0
-                                            simple_factors.append((feature, diff))
-                                        
-                                        positive_features = [(f, w) for f, w in simple_factors if w > 0][:3]
-                                        negative_features = [(f, w) for f, w in simple_factors if w < 0][:3]
-                                    
-                                    # Generate AI analysis
-                                    shap_analysis = st.session_state.get('shap_analysis', None)
-                                    
-                                    # Custom prompt based on format
-                                    if analysis_format == "Ringkasan Eksekutif":
-                                        format_instruction = "Buat ringkasan eksekutif singkat (maksimal 150 kata) yang fokus pada kesimpulan utama dan rekomendasi prioritas untuk pemberdayaan Usaha Kecil."
-                                    elif analysis_format == "Rekomendasi Kebijakan Usaha Kecil":
-                                        format_instruction = "Fokus pada rekomendasi kebijakan yang konkret dan actionable untuk pemberdayaan Usaha Kecil. Berikan 3-4 rekomendasi spesifik dengan prioritas implementasi."
-                                    else:  # Laporan Detail
-                                        format_instruction = "Buat laporan detail lengkap dengan analisis mendalam semua aspek yang mempengaruhi risiko kegagalan Usaha Kecil."
-                                    
-                                    custom_narrative = generate_narrative_explanation_custom(
-                                        client,
-                                        row['kabupaten_kota'],
-                                        row['tahun'],
-                                        row['kuartal'],
-                                        row['Risk_Score'],
-                                        positive_features,
-                                        negative_features,
-                                        shap_analysis,
-                                        format_instruction,
-                                        st.session_state.get('analysis_language', 'Bahasa Indonesia'),
-                                        st.session_state.get('llm_temperature', 0.7),
-                                        st.session_state.get('llm_max_tokens', 1500)
-                                    )
-                                    
-                                    bulk_results.append({
-                                        'region': row['kabupaten_kota'],
-                                        'year': row['tahun'],
-                                        'quarter': row['kuartal'],
-                                        'risk_score': row['Risk_Score'],
-                                        'analysis': custom_narrative
-                                    })
-                                    
-                                except Exception as e:
-                                    st.warning(f"Gagal menganalisis {row['kabupaten_kota']}: {e}")
-                                
-                                progress_bar.progress((idx + 1) / total_analyses)
-                            
-                            # Display results
-                            st.success(f"✅ Analisis massal selesai! {len(bulk_results)} analisis berhasil dibuat.")
-                            
-                            # Save to session state
-                            st.session_state.bulk_analysis_results = bulk_results
-                            
-                            # Display results with tabs
-                            if bulk_results:
-                                for i, result in enumerate(bulk_results):
-                                    with st.expander(f"📋 {result['region']} - Q{result['quarter']} {result['year']} (Risiko Kegagalan Usaha Kecil: {result['risk_score']:.3f})"):
-                                        st.markdown(result['analysis'])
-                
-                # Download bulk results
-                if 'bulk_analysis_results' in st.session_state and st.session_state.bulk_analysis_results:
-                    st.markdown("**💾 Download Hasil Analisis Massal Risiko Usaha Kecil**")
-                    
-                    # Prepare download data
-                    bulk_text = f"# Laporan Analisis Risiko Kegagalan Usaha Kecil Massal - {bulk_analysis_type}\n"
-                    bulk_text += f"Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                    
-                    for result in st.session_state.bulk_analysis_results:
-                        bulk_text += f"## {result['region']} - Q{result['quarter']} {result['year']}\n"
-                        bulk_text += f"**Skor Risiko Kegagalan Usaha Kecil:** {result['risk_score']:.3f}\n\n"
-                        bulk_text += result['analysis']
-                        bulk_text += "\n\n---\n\n"
-                    
-                    st.download_button(
-                        label="📄 Download Laporan Massal (Markdown)",
-                        data=bulk_text,
-                        file_name=f"bulk_analysis_usaha_kecil_{bulk_analysis_type.lower().replace(' ', '_')}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.md",
-                        mime="text/markdown"
-                    )
                 
     else:
         # --- Halaman Sambutan (tidak ada perubahan) ---
