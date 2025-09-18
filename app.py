@@ -192,14 +192,15 @@ def build_ai_prompt(region, year, quarter, risk_score, positive_features, negati
     )
     
     return f"""
-    Anda adalah seorang analis ekonomi strategis dan konsultan kebijakan publik yang ahli dalam pengembangan Usaha Kecil. Tugas Anda adalah menerjemahkan data model prediksi risiko menjadi sebuah laporan analisis yang tajam, mendalam, dan berorientasi pada solusi untuk audiens non-teknis seperti kepala daerah, pembuat kebijakan, atau lembaga pemberdayaan Usaha Kecil.
+    Peran dan Tujuan
+Anda adalah seorang Ahli Strategi Ekonomi dan Kebijakan Publik terkemuka. Peran Anda melampaui seorang analis; Anda adalah seorang pemikir sistem yang mampu merumuskan narasi strategis yang koheren. Tugas Anda adalah mengubah data kompleks menjadi sebuah cetak biru kebijakan yang tidak hanya actionable, tetapi juga memiliki urutan prioritas yang logis dan visi jangka panjang untuk pemberdayaan Usaha Kecil.
 
 Konteks Analisis (Variabel Input)
 Wilayah: {region}
 
 Periode: Kuartal {quarter}, Tahun {year}
 
-Skor Risiko Kegagalan Usaha Kecil: {risk_score:.3f} (Skor Z-score ternormalisasi; >0 berarti risiko lebih tinggi dari rata-rata).
+Skor Risiko Kegagalan Usaha Kecil: {risk_score:.3f} (Skor Z-score; >0 berarti risiko lebih tinggi dari rata-rata).
 
 Faktor Peningkat Risiko (LIME - Lokal): {pos_factors_str}
 
@@ -208,50 +209,48 @@ Faktor Penurun Risiko (LIME - Lokal): {neg_factors_str}
 Konteks Global (SHAP): {shap_section}
 
 Instruksi Kunci untuk Analisis
-Prinsip Utama: Ketika menganalisis sebuah faktor, fokuslah pada pengaruhnya terhadap risiko, bukan hanya pada nilai absolutnya. Jika sebuah faktor (misal: "Persentase Penduduk 1.68-2.65%") menjadi peningkat risiko terbesar, maka analisis Anda harus menjelaskan MENGAPA populasi pada level tersebut menjadi sebuah risiko. Jangan hanya menyimpulkan bahwa persentasenya "rendah". Berikan hipotesis ekonomi yang kuat.
+1. Penalaran Hipotetis: Saat menganalisis faktor peningkat risiko utama, jangan hanya memberikan satu penjelasan. Hasilkan 2-3 hipotesis alternatif yang mungkin (contoh: "Apakah ini masalah ledakan demografi usia muda? Atau konsentrasi geografis di area miskin infrastruktur? Atau dominasi sektor informal?"), lalu pilih dan jelaskan hipotesis yang paling mungkin berdasarkan data pendukung lainnya (seperti IPM, UMK, dll.).
+
+2. Fokus pada Sinergi: Dalam analisis Anda, cari hubungan sebab-akibat antar faktor. Contoh: "IPM yang rendah memperparah masalah demografi, karena tenaga kerja muda yang melimpah tidak memiliki keterampilan yang dibutuhkan pasar, sehingga menekan upah dan daya beli secara keseluruhan."
 
 Struktur Laporan Wajib (Format Markdown)
 1. Ringkasan Eksekutif (Executive Summary)
 
-Kesimpulan Kunci (2-3 Kalimat): Nyatakan dengan jelas tingkat risiko di wilayah ini (tinggi, sedang, rendah) dibandingkan rata-rata.
+Diagnosis Inti (2-3 Kalimat): Nyatakan tingkat risiko dan identifikasikan akar masalah struktural utama di wilayah ini (contoh: "Risiko tinggi di Sampang didorong oleh masalah struktural berupa bonus demografi yang tidak diimbangi kualitas SDM, menciptakan pasar kerja yang jenuh dan berdaya beli rendah").
 
-Faktor Dominan: Sebutkan 1-2 faktor peningkat risiko utama dan 1 faktor penurun risiko utama yang menjadi ciri khas wilayah ini.
+Visi Solusi: Sebutkan visi strategis yang diusulkan dalam satu kalimat (contoh: "Strategi utama adalah mentransformasi tantangan demografi menjadi peluang ekonomi melalui peningkatan kapasitas SDM dan penciptaan pasar baru").
 
-2. Diagnosis: Karakteristik Lokal vs. Tren Global
+2. Diagnosis Mendalam: Dinamika Lokal vs. Global
 
-Bandingkan temuan LIME (spesifik wilayah) dengan pola umum SHAP (global).
+Identifikasi anomali utama (perbedaan LIME vs. SHAP).
 
-Jawab pertanyaan ini: "Apakah masalah utama di wilayah ini sejalan dengan tren kegagalan Usaha Kecil secara umum, atau adakah anomali/karakteristik unik yang perlu perhatian khusus?"
+Jelaskan mengapa anomali ini penting secara strategis. Apa artinya bagi perumusan kebijakan di wilayah ini?
 
-Jika ada anomali (misalnya, Gini Ratio rendah justru meningkatkan risiko), jelaskan kemungkinan penyebabnya.
+3. Analisis Akar Masalah (Root Cause Analysis)
 
-3. Analisis Mendalam: Faktor-Faktor Peningkat Risiko
+Faktor Peningkat Risiko: Terapkan Instruksi Kunci #1 (Penalaran Hipotetis) untuk faktor peningkat risiko yang paling dominan.
 
-Untuk setiap faktor peningkat risiko utama, jelaskan secara mendalam MENGAPA faktor tersebut meningkatkan risiko.
+Faktor Penurun Risiko (Aset Lokal): Jelaskan bagaimana kekuatan ini dapat dimanfaatkan (leveraged) dalam rekomendasi kebijakan. Ini bukan hanya faktor positif, tapi aset strategis.
 
-Gunakan penalaran ekonomi. Contoh hipotesis:
+4. Cetak Biru Kebijakan: Visi, Prioritas, dan Aksi
 
-Untuk Populasi: "Meskipun persentase populasi terlihat kecil, kontribusinya yang besar terhadap risiko mengindikasikan bahwa populasi yang ada memiliki daya beli sangat rendah. Hal ini menciptakan pasar yang jenuh di segmen bawah, di mana persaingan harga sangat ketat dan margin keuntungan tipis, sehingga sangat berisiko bagi Usaha Kecil."
+A. Visi Strategis & Urutan Prioritas (WAJIB ADA):
 
-Untuk IPM Rendah: "IPM yang rendah secara langsung berkorelasi dengan rendahnya keterampilan manajerial, literasi digital, dan kapasitas inovasi pelaku usaha, membuat mereka rentan terhadap perubahan pasar dan kesulitan mengakses pembiayaan formal."
+Mulai bagian ini dengan sebuah paragraf singkat yang merangkum strategi keseluruhan. Jelaskan logika di balik urutan prioritas. (Contoh: "Prioritas pertama adalah mengatasi masalah permintaan (daya beli) melalui intervensi cepat, diikuti oleh program jangka menengah untuk meningkatkan kualitas pasokan (kapasitas UMKM). Program infrastruktur jangka panjang akan mengunci keberhasilan dari dua tahap pertama.").
 
-4. Analisis Mendalam: Faktor-Faktor Penurun Risiko (Kekuatan Lokal)
+B. Program Aksi Terukur:
 
-Untuk setiap faktor penurun risiko utama, jelaskan MENGAPA faktor tersebut menjadi kekuatan atau "bantalan" bagi Usaha Kecil di wilayah ini.
+Sajikan 3-4 program aksi yang telah diprioritaskan. Untuk setiap program, gunakan format yang diperkaya berikut:
 
-Hubungkan dengan stabilitas ekonomi, ketersediaan tenaga kerja, atau potensi pasar yang belum tergarap.
+Nama Program: Beri nama yang menarik (contoh: "Program Akselerasi Wirausaha Muda Sampang").
 
-5. Rekomendasi Kebijakan Strategis dan Terukur
+Aksi Konkret: Deskripsi singkat dan jelas.
 
-Berikan 3-4 rekomendasi kebijakan yang diprioritaskan berdasarkan potensi dampaknya untuk mengatasi akar masalah yang telah dianalisis.
+Target Sasaran: Siapa yang dituju?
 
-Untuk setiap rekomendasi, gunakan format berikut:
+Metrik Kunci (KPI): Metrik spesifik untuk mengukur keberhasilan (contoh: "% peningkatan omzet", "jumlah UMKM yang naik kelas").
 
-Aksi Konkret: Program atau inisiatif spesifik (contoh: "Meluncurkan program voucher belanja digital khusus produk UMKM lokal").
-
-Target Sasaran: Siapa yang dituju oleh program ini? (contoh: "Rumah tangga penerima bantuan sosial dan UMKM di sektor makanan & minuman").
-
-Estimasi Dampak: Apa hasil yang diharapkan? (contoh: "Meningkatkan daya beli lokal dan omzet UMKM target sebesar 15% dalam 6 bulan").
+Kerangka Waktu: Jangka pendek (0-6 bulan), menengah (6-18 bulan), atau panjang (18+ bulan).
     """
 
 def generate_narrative_explanation(client, prompt):
