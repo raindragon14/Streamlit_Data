@@ -237,8 +237,8 @@ def generate_narrative_explanation(client, prompt):
                 {"role": "system", "content": "Anda adalah seorang analis ekonomi ahli yang fokus pada Usaha Kecil."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=st.session_state.get('llm_temperature', 0.4),
-            max_tokens=st.session_state.get('llm_max_tokens', 2000)
+            temperature=st.session_state.get('llm_temperature', 0.8),
+            max_tokens=st.session_state.get('llm_max_tokens', 3000)
         )
         return response.choices[0].message.content
     except Exception as e:
@@ -270,13 +270,6 @@ def display_sidebar(df_is_loaded):
                 "Fitur Model": MODEL_FEATURES,
                 "Metadata": ['kabupaten_kota', 'tahun', 'kuartal', 'Proksi Inflasi']
             })
-
-        st.markdown("---")
-        st.markdown('<div class="sidebar-header">🤖 Konfigurasi AI</div>', unsafe_allow_html=True)
-        st.session_state.llm_temperature = st.slider("🌡️ Kreativitas (Temperature)", 0.1, 1.0, 0.4, 0.05)
-        st.session_state.llm_max_tokens = st.slider("📏 Panjang Respons (Tokens)", 500, 3000, 2000, 100)
-        st.session_state.analysis_language = st.selectbox("🌍 Bahasa Analisis", ["Bahasa Indonesia", "English"])
-
         return uploaded_file
 
 def display_welcome_page():
