@@ -192,38 +192,66 @@ def build_ai_prompt(region, year, quarter, risk_score, positive_features, negati
     )
     
     return f"""
-    Anda adalah seorang analis ekonomi dan konsultan Usaha Kecil ahli yang ditugaskan untuk menjelaskan prediksi risiko kegagalan usaha kecil untuk seorang kepala daerah, pembuat kebijakan, atau lembaga pemberdayaan Usaha Kecil.
-    
-    Catatan : 
-    1. "Persentase Penduduk" dihitung dengan (jumlah penduduk di wilayah itu)/jumlah penduduk Jawa Timur lalu dikalikan dengan 100%
-    2. "investasi_per_kapita" dihitung dengan jumlah investasi pada wilayah tersebut dibagi dengan jumlah tenaga kerja
-    
-    **Konteks Analisis:**
-    - **Wilayah:** {region}
-    - **Periode:** Kuartal {quarter}, Tahun {year}
-    - **Skor Risiko Kegagalan Usaha Kecil:** {risk_score:.3f} (skor lebih tinggi berarti risiko kegagalan usaha kecil lebih besar, skor berupa hasil normalisasi z-score)
+    Anda adalah seorang analis ekonomi strategis dan konsultan kebijakan publik yang ahli dalam pengembangan Usaha Kecil. Tugas Anda adalah menerjemahkan data model prediksi risiko menjadi sebuah laporan analisis yang tajam, mendalam, dan berorientasi pada solusi untuk audiens non-teknis seperti kepala daerah, pembuat kebijakan, atau lembaga pemberdayaan Usaha Kecil.
 
-    **Faktor-faktor Kunci dari Model (berdasarkan LIME - Analisis Lokal untuk Wilayah Ini):**
-    **Faktor Peningkat Risiko Kegagalan Usaha Kecil:**
-    {pos_factors_str}
-    **Faktor Penurun Risiko Kegagalan Usaha Kecil:**
-    {neg_factors_str}
-    {shap_section}
+Konteks Analisis (Variabel Input)
+Wilayah: {region}
 
-    **Tugas Anda:**
-    Tulis laporan analisis yang ringkas, jelas, objektif dan actionable dalam format Markdown. Laporan harus mencakup:
-    
-    1.  **Ringkasan Eksekutif:** Mulai dengan kesimpulan utama dalam 2-3 kalimat. Jelaskan secara singkat tingkat risiko kegagalan Usaha Kecil di wilayah ini dan apa pendorong utamanya.
-    
-    2.  **Analisis Faktor Lokal vs Global:** Bandingkan hasil LIME (spesifik untuk wilayah ini) dengan pola SHAP global. Jelaskan apakah wilayah ini mengikuti pola umum kegagalan Usaha Kecil atau memiliki karakteristik unik.
-    
-    3.  **Analisis Faktor Peningkat Risiko:** Jelaskan MENGAPA faktor-faktor ini kemungkinan besar meningkatkan risiko kegagalan Usaha Kecil. Hubungkan dengan teori ekonomi Usaha Kecil, akses permodalan, daya beli masyarakat, atau kondisi pasar lokal.
-    
-    4.  **Analisis Faktor Penurun Risiko:** Jelaskan MENGAPA faktor-faktor ini menjadi kekuatan pendukung keberhasilan Usaha Kecil di wilayah tersebut dan membantu menekan risiko kegagalan.
-    
-    5.  **Rekomendasi Kebijakan Usaha Kecil:** Berdasarkan analisis lokal dan global, berikan 3-4 rekomendasi kebijakan yang konkret dan dapat ditindaklanjuti untuk pemberdayaan Usaha Kecil, dengan prioritas berdasarkan dampak yang diharapkan terhadap pengurangan risiko kegagalan usaha kecil.
+Periode: Kuartal {quarter}, Tahun {year}
 
-    Gunakan bahasa yang profesional namun mudah dipahami oleh audiens non-teknis. Fokus pada konteks Usaha Kecil, seperti akses permodalan, daya beli masyarakat, infrastruktur bisnis, dan ekosistem kewirausahaan. Jika ada data SHAP yang tersedia, pastikan untuk mengintegrasikan insight global dengan analisis lokal LIME.
+Skor Risiko Kegagalan Usaha Kecil: {risk_score:.3f} (Skor Z-score ternormalisasi; >0 berarti risiko lebih tinggi dari rata-rata).
+
+Faktor Peningkat Risiko (LIME - Lokal): {pos_factors_str}
+
+Faktor Penurun Risiko (LIME - Lokal): {neg_factors_str}
+
+Konteks Global (SHAP): {shap_section}
+
+Instruksi Kunci untuk Analisis
+Prinsip Utama: Ketika menganalisis sebuah faktor, fokuslah pada pengaruhnya terhadap risiko, bukan hanya pada nilai absolutnya. Jika sebuah faktor (misal: "Persentase Penduduk 1.68-2.65%") menjadi peningkat risiko terbesar, maka analisis Anda harus menjelaskan MENGAPA populasi pada level tersebut menjadi sebuah risiko. Jangan hanya menyimpulkan bahwa persentasenya "rendah". Berikan hipotesis ekonomi yang kuat.
+
+Struktur Laporan Wajib (Format Markdown)
+1. Ringkasan Eksekutif (Executive Summary)
+
+Kesimpulan Kunci (2-3 Kalimat): Nyatakan dengan jelas tingkat risiko di wilayah ini (tinggi, sedang, rendah) dibandingkan rata-rata.
+
+Faktor Dominan: Sebutkan 1-2 faktor peningkat risiko utama dan 1 faktor penurun risiko utama yang menjadi ciri khas wilayah ini.
+
+2. Diagnosis: Karakteristik Lokal vs. Tren Global
+
+Bandingkan temuan LIME (spesifik wilayah) dengan pola umum SHAP (global).
+
+Jawab pertanyaan ini: "Apakah masalah utama di wilayah ini sejalan dengan tren kegagalan Usaha Kecil secara umum, atau adakah anomali/karakteristik unik yang perlu perhatian khusus?"
+
+Jika ada anomali (misalnya, Gini Ratio rendah justru meningkatkan risiko), jelaskan kemungkinan penyebabnya.
+
+3. Analisis Mendalam: Faktor-Faktor Peningkat Risiko
+
+Untuk setiap faktor peningkat risiko utama, jelaskan secara mendalam MENGAPA faktor tersebut meningkatkan risiko.
+
+Gunakan penalaran ekonomi. Contoh hipotesis:
+
+Untuk Populasi: "Meskipun persentase populasi terlihat kecil, kontribusinya yang besar terhadap risiko mengindikasikan bahwa populasi yang ada memiliki daya beli sangat rendah. Hal ini menciptakan pasar yang jenuh di segmen bawah, di mana persaingan harga sangat ketat dan margin keuntungan tipis, sehingga sangat berisiko bagi Usaha Kecil."
+
+Untuk IPM Rendah: "IPM yang rendah secara langsung berkorelasi dengan rendahnya keterampilan manajerial, literasi digital, dan kapasitas inovasi pelaku usaha, membuat mereka rentan terhadap perubahan pasar dan kesulitan mengakses pembiayaan formal."
+
+4. Analisis Mendalam: Faktor-Faktor Penurun Risiko (Kekuatan Lokal)
+
+Untuk setiap faktor penurun risiko utama, jelaskan MENGAPA faktor tersebut menjadi kekuatan atau "bantalan" bagi Usaha Kecil di wilayah ini.
+
+Hubungkan dengan stabilitas ekonomi, ketersediaan tenaga kerja, atau potensi pasar yang belum tergarap.
+
+5. Rekomendasi Kebijakan Strategis dan Terukur
+
+Berikan 3-4 rekomendasi kebijakan yang diprioritaskan berdasarkan potensi dampaknya untuk mengatasi akar masalah yang telah dianalisis.
+
+Untuk setiap rekomendasi, gunakan format berikut:
+
+Aksi Konkret: Program atau inisiatif spesifik (contoh: "Meluncurkan program voucher belanja digital khusus produk UMKM lokal").
+
+Target Sasaran: Siapa yang dituju oleh program ini? (contoh: "Rumah tangga penerima bantuan sosial dan UMKM di sektor makanan & minuman").
+
+Estimasi Dampak: Apa hasil yang diharapkan? (contoh: "Meningkatkan daya beli lokal dan omzet UMKM target sebesar 15% dalam 6 bulan").
     """
 
 def generate_narrative_explanation(client, prompt):
