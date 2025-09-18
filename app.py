@@ -211,7 +211,7 @@ def build_ai_prompt(region, year, quarter, risk_score, positive_features, negati
     {shap_section}
 
     **Tugas Anda:**
-    Tulis laporan analisis yang ringkas, jelas, dan actionable dalam format Markdown. Laporan harus mencakup:
+    Tulis laporan analisis yang ringkas, jelas, objektif dan actionable dalam format Markdown. Laporan harus mencakup:
     
     1.  **Ringkasan Eksekutif:** Mulai dengan kesimpulan utama dalam 2-3 kalimat. Jelaskan secara singkat tingkat risiko kegagalan Usaha Kecil di wilayah ini dan apa pendorong utamanya.
     
