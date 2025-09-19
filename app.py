@@ -404,14 +404,14 @@ else:
     }
     
         # Integrasi AI
-        if client:
-            if st.button("🤖 Buat Analisis Naratif dengan AI", key=f"ai_{instance_idx}"):
-                with st.spinner("🧠 AI sedang menyusun laporan..."):
-                    shap_analysis = st.session_state.get('shap_analysis_summary')
-                    prompt = build_ai_prompt(selected_region, selected_year, selected_quarter, predicted_risk,
+    if client:
+        if st.button("🤖 Buat Analisis Naratif dengan AI", key=f"ai_{instance_idx}"):
+            with st.spinner("🧠 AI sedang menyusun laporan..."):
+                shap_analysis = st.session_state.get('shap_analysis_summary')
+                prompt = build_ai_prompt(selected_region, selected_year, selected_quarter, predicted_risk,
                                              positive_features, negative_features, shap_analysis)
-                    narrative = generate_narrative_explanation(client, prompt)
-                    st.session_state[f'narrative_{instance_idx}'] = narrative
+                narrative = generate_narrative_explanation(client, prompt)
+                st.session_state[f'narrative_{instance_idx}'] = narrative
     else:
         # Fallback jika LIME gagal
         st.warning("LIME gagal, analisis AI akan menggunakan perbandingan data mentah dengan median.")
