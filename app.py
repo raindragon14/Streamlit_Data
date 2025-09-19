@@ -250,8 +250,8 @@ def generate_narrative_explanation(client, prompt):
                 {"role": "system", "content": "Anda adalah seorang analis ekonomi ahli yang fokus pada Usaha Kecil."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=st.session_state.get('llm_temperature', 0.8),
-            max_tokens=st.session_state.get('llm_max_tokens', 3000)
+            temperature=st.session_state.get('llm_temperature', 0.4),
+            max_tokens=st.session_state.get('llm_max_tokens', 2500)
         )
         return response.choices[0].message.content
     except Exception as e:
