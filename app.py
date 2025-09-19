@@ -172,86 +172,70 @@ def get_ai_client():
         
 def build_ai_prompt(region, year, quarter, risk_score, local_factors, global_factors, instance_shap_factors):
     """
-    Membangun prompt yang kaya konteks untuk LLM.
-
-    Args:
-        region (str): Nama wilayah yang dianalisis.
-        year (int): Tahun analisis.
-        quarter (int): Kuartal analisis.
-        risk_score (float): Skor risiko yang diprediksi.
-        local_factors (dict): Faktor dari LIME atau fallback SHAP instance. Berisi 'positive' dan 'negative'.
-        global_factors (dict): Faktor dari SHAP summary. Berisi 'positive_factors' dan 'negative_factors'.
-        instance_shap_factors (dict): Faktor SHAP spesifik untuk instance ini. Berisi 'positive' dan 'negative'.
+    Membangun prompt yang kaya konteks untuk LLM agar berperan sebagai konsultan strategis.
     """
     
-    # Helper function untuk menghindari repetisi kode
+    # Helper function untuk memformat list faktor menjadi string markdown
     def format_factors(factors_dict, is_lime=False):
-        """Mengubah dictionary faktor menjadi string markdown yang rapi."""
-        # LIME memberikan tuple ('feature condition', weight), sedangkan SHAP hanya (feature, weight)
+        if not factors_dict:
+            return "     - Tidak ada yang signifikan"
+        # LIME menghasilkan format yang sedikit berbeda dari SHAP
         if is_lime:
-            return "\n".join([f"- `{factor[0]}` (Kontribusi: {factor[1]:.3f})" for factor in factors_dict])
-        return "\n".join([f"- `{factor}` (Kontribusi: {weight:.3f})" for factor, weight in factors_dict.items()])
+            return "\n".join([f"     - `{factor[0]}` (Kontribusi: {factor[1]:.3f})" for factor in factors_dict])
+        return "\n".join([f"     - `{factor}` (Kontribusi: {weight:.3f})" for factor, weight in factors_dict.items()])
 
-    # Memformat semua data XAI untuk dimasukkan ke dalam prompt
-    local_pos_str = format_factors(local_factors['positive'], is_lime=True)
-    local_neg_str = format_factors(local_factors['negative'], is_lime=True)
+    # --- LAPIS 1 & 2: PENYAJIAN DATA TIGA PERSPEKTIF ---
+    local_pos_str = format_factors(local_factors.get('positive', {}), is_lime=True)
+    local_neg_str = format_factors(local_factors.get('negative', {}), is_lime=True)
     
-    global_pos_str = "\n".join([f"- `{factor}`" for factor, _ in global_factors['positive_factors'][:5]])
-    global_neg_str = "\n".join([f"- `{factor}`" for factor, _ in global_factors['negative_factors'][:5]])
+    global_pos_str = "\n".join([f"     - `{factor}`" for factor, _ in global_factors.get('positive_factors', [])[:3]])
+    global_neg_str = "\n".join([f"     - `{factor}`" for factor, _ in global_factors.get('negative_factors', [])[:3]])
     
-    instance_shap_pos_str = format_factors(instance_shap_factors['positive'])
-    instance_shap_neg_str = format_factors(instance_shap_factors['negative'])
+    instance_shap_pos_str = format_factors(instance_shap_factors.get('positive', {}))
+    instance_shap_neg_str = format_factors(instance_shap_factors.get('negative', {}))
 
-    # Template prompt utama
+    # --- LAPIS 3: INSTRUKSI STRATEGIS & PERAN ---
     prompt = f"""
-**Peran dan Tujuan:**
-Anda adalah seorang Ahli Strategi Ekonomi dan Kebijakan Publik. Peran Anda adalah mengubah data kuantitatif dari model AI menjadi sebuah cetak biru kebijakan yang actionable, memiliki prioritas logis, dan visi jangka panjang untuk pemberdayaan Usaha Kecil.
+**Peran Anda:**
+Anda adalah seorang **Konsultan Strategi Ekonomi Senior** untuk pemerintah daerah. Tugas Anda bukan sekadar meringkas data, tetapi **mensintesis** informasi dari berbagai sudut pandang untuk menemukan **anomali strategis** dan merumuskan cetak biru kebijakan yang visioner.
 
 ---
-
-**Konteks Analisis:**
+**Dokumen Analisis Kasus:**
 - **Wilayah:** {region}
 - **Periode:** Kuartal {quarter}, Tahun {year}
-- **Skor Risiko Kegagalan Usaha Kecil:** {risk_score:.3f} (Skor Z-score; >0 berarti risiko lebih tinggi dari rata-rata).
+- **Skor Risiko Kegagalan Usaha Kecil:** {risk_score:.3f} (Semakin tinggi, semakin berisiko)
 
 ---
+**Tiga Sudut Pandang Analisis XAI (Explainable AI):**
 
-**Data Penjelasan Model (Explainable AI):**
-
-**1. Analisis Lokal (LIME - Faktor Paling Berpengaruh untuk Wilayah Ini):**
-   - **Peningkat Risiko:**
-{local_pos_str if local_pos_str else "     - Tidak ada yang signifikan"}
-   - **Penurun Risiko:**
-{local_neg_str if local_neg_str else "     - Tidak ada yang signifikan"}
-
-**2. Analisis Lokal (SHAP - Kontribusi Pasti per Fitur untuk Wilayah Ini):**
-   - **Peningkat Risiko:**
-{instance_shap_pos_str if instance_shap_pos_str else "     - Tidak ada yang signifikan"}
-   - **Penurun Risiko:**
-{instance_shap_neg_str if instance_shap_neg_str else "     - Tidak ada yang signifikan"}
-
-**3. Analisis Global (SHAP - Pola Umum di Seluruh Wilayah):**
-   - **Peningkat Risiko Teratas (Secara Umum):**
+**1. Pandangan Global (Tren Umum di Semua Wilayah):**
+   *Faktor-faktor yang secara umum paling sering meningkatkan risiko:*
 {global_pos_str}
-   - **Penurun Risiko Teratas (Secara Umum):**
+   *Faktor-faktor yang secara umum paling sering menurunkan risiko:*
 {global_neg_str}
 
+**2. Pandangan Lokal Presisi (SHAP - Kontribusi Pasti untuk Wilayah Ini):**
+   *Peningkat Risiko Utama (Spesifik {region}):*
+{instance_shap_pos_str}
+   *Penurun Risiko Utama (Spesifik {region}):*
+{instance_shap_neg_str}
+
+**3. Pandangan Lokal Intuitif (LIME - Perkiraan Faktor Pendorong):**
+   *Peningkat Risiko Utama (Spesifik {region}):*
+{local_pos_str}
+   *Penurun Risiko Utama (Spesifik {region}):*
+{local_neg_str}
+
 ---
+**Tugas Wajib Anda (Gunakan data di atas):**
 
-**Instruksi Kunci untuk Analisis:**
-1.  **Cari Anomali Strategis:** Bandingkan faktor lokal (dari LIME & SHAP Instance) dengan faktor global. Jika ada perbedaan mencolok (misal, faktor yang tidak penting secara global justru menjadi pendorong utama di wilayah ini), jelaskan mengapa anomali ini penting dan apa implikasinya bagi perumusan kebijakan.
-2.  **Lakukan Analisis Akar Masalah (Root Cause):** Untuk 1-2 faktor peningkat risiko utama, berikan hipotesis mengapa faktor tersebut menjadi masalah di wilayah ini. Gunakan data lain (seperti IPM, UMK) untuk mendukung hipotesis Anda.
-3.  **Manfaatkan Aset Lokal:** Identifikasi faktor penurun risiko sebagai 'aset strategis' wilayah. Jelaskan bagaimana aset ini dapat dimanfaatkan (di-leverage) dalam rekomendasi kebijakan Anda.
+1.  **Identifikasi Anomali Strategis (WAJIB):** Bandingkan **Pandangan Lokal Presisi (No. 2)** dengan **Pandangan Global (No. 1)**. Apakah faktor pendorong risiko utama di wilayah ini **BERBEDA** dari tren umum? Jika ya, nyatakan dengan jelas sebagai **"Anomali Strategis"** dan jelaskan mengapa perbedaan ini sangat penting bagi perumusan kebijakan. Ini adalah inti dari analisis Anda.
 
----
+2.  **Analisis Akar Masalah:** Berdasarkan anomali yang ditemukan, berikan 2 hipotesis mengapa hal ini terjadi di wilayah ini. Gunakan data lain dalam nama fitur (seperti IPM, UMK, Gini Ratio) untuk memperkuat argumen Anda.
 
-**Struktur Laporan Wajib (Gunakan Format Markdown):**
-1.  **Ringkasan Eksekutif:** Diagnosis inti (2-3 kalimat) dan Visi Solusi (1 kalimat).
-2.  **Diagnosis Mendalam:** Jelaskan anomali strategis yang Anda temukan dan signifikansinya.
-3.  **Analisis Akar Masalah:** Terapkan Instruksi Kunci #2 dan #3.
-4.  **Cetak Biru Kebijakan:**
-    - **A. Visi & Urutan Prioritas:** Jelaskan logika strategi dan prioritas (Jangka Pendek, Menengah, Panjang).
-    - **B. Program Aksi Terukur:** Sajikan 3 program prioritas dengan format: Nama Program, Aksi Konkret, Target Sasaran, KPI, dan Kerangka Waktu.
+3.  **Cetak Biru Kebijakan (Actionable):** Berdasarkan analisis akar masalah, usulkan 2-3 program aksi yang **spesifik** dan **terprioritaskan** (Jangka Pendek & Jangka Menengah) lengkap dengan KPI (Key Performance Indicator) untuk mengukur keberhasilannya.
+
+**Format Output:** Gunakan Markdown dengan heading untuk setiap bagian. Mulai dengan "Ringkasan Eksekutif".
 """
     return prompt
 
