@@ -480,7 +480,7 @@ def main():
         with tab2:
             display_shap_analysis(X, shap_values)
         with tab3:
-            display_lime_and_ai_analysis(model, X, df_with_predictions, client)
+            display_lime_and_ai_analysis(model, X, df_with_predictions , shap_values , client)
     else:
         display_welcome_page()
 
