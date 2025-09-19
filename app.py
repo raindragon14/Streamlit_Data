@@ -333,21 +333,20 @@ def display_shap_analysis(X, shap_values):
     shap.summary_plot(shap_values, X, show=False)
     st.pyplot(fig)
 
-def display_lime_and_ai_analysis(model, X, df_pred, client):
-    """Menampilkan analisis LIME (lokal) dan integrasi AI."""
+def display_lime_and_ai_analysis(model, X, df_pred, shap_values, client):
     st.markdown('<div class="section-header">🎯 Analisis Lokal (LIME) & Wawasan AI</div>', unsafe_allow_html=True)
-    st.info("LIME (Local Interpretable Model-agnostic Explanations) menjelaskan prediksi untuk **satu data point spesifik**. Pilih wilayah dan periode di bawah untuk melihat faktor apa yang mendorong risikonya.", icon="💡")
+    st.info("Pilih wilayah spesifik untuk melihat faktor pendorong risikonya. Kemudian, klik tombol untuk mendapatkan laporan kebijakan mendalam dari AI.", icon="💡")
 
+    # --- Bagian Pemilihan Instance (tidak berubah) ---
     col1, col2, col3 = st.columns(3)
     unique_regions = sorted(df_pred['kabupaten_kota'].unique())
     unique_years = sorted(df_pred['tahun'].unique())
     unique_quarters = sorted(df_pred['kuartal'].unique())
 
-    selected_region = col1.selectbox("Pilih Kabupaten/Kota", unique_regions)
-    selected_year = col2.selectbox("Pilih Tahun", unique_years)
-    selected_quarter = col3.selectbox("Pilih Kuartal", unique_quarters)
+    selected_region = col1.selectbox("Pilih Kabupaten/Kota", unique_regions, key='region_select')
+    selected_year = col2.selectbox("Pilih Tahun", unique_years, key='year_select')
+    selected_quarter = col3.selectbox("Pilih Kuartal", unique_quarters, key='quarter_select')
 
-    # Cari instance yang sesuai
     instance_df = df_pred[
         (df_pred['kabupaten_kota'] == selected_region) & 
         (df_pred['tahun'] == selected_year) & 
@@ -364,77 +363,75 @@ def display_lime_and_ai_analysis(model, X, df_pred, client):
     st.subheader(f"Analisis untuk: {selected_region} (Q{selected_quarter} {selected_year})")
     st.metric("Prediksi Skor Risiko", f"{predicted_risk:.3f}")
     
-    # Panggil fungsi untuk menghasilkan penjelasan LIME
-lime_exp = generate_lime_explanation(model, X, instance_idx)
+    # --- 1. Tampilkan Penjelasan LIME secara Visual ---
+    st.markdown("---")
+    st.markdown("#### Penjelasan Lokal (LIME)")
 
-# Inisialisasi variabel untuk menampung hasil
-positive_features = []
-negative_features = []
-local_factors_for_prompt = {}
+    lime_exp = generate_lime_explanation(model, X, instance_idx)
+    
+    if lime_exp:
+        exp_list = lime_exp.as_list()
+        positive_features = sorted([(f, w) for f, w in exp_list if w > 0], key=lambda i: i[1], reverse=True)
+        negative_features = sorted([(f, w) for f, w in exp_list if w < 0], key=lambda i: i[1])
 
-# Cek apakah LIME berhasil
-if lime_exp:
-    # JALUR UTAMA: LIME berhasil, proses hasilnya
-    exp_list = lime_exp.as_list()
-    positive_features = sorted([(f, w) for f, w in exp_list if w > 0], key=lambda i: i[1], reverse=True)
-    negative_features = sorted([(f, w) for f, w in exp_list if w < 0], key=lambda i: i[1])
-    
-    # Siapkan data untuk prompt, LIME memberikan tuple ('feature condition', weight)
-    local_factors_for_prompt = {
-        'positive': positive_features, 
-        'negative': negative_features
-    }
-else:
-    # JALUR FALLBACK: LIME gagal, gunakan SHAP per instance sebagai gantinya
-    st.warning("Penjelasan LIME gagal, analisis faktor lokal akan menggunakan SHAP per instance sebagai gantinya.", icon="⚠️")
-    
-    instance_shap_values = shap_values.values[instance_idx]
-    feature_names = shap_values.feature_names
-    
-
-    shap_dict = dict(zip(feature_names, instance_shap_values))
-  
-    positive_features_from_shap = sorted([(f, w) for f, w in shap_dict.items() if w > 0], key=lambda i: i[1], reverse=True)
-    negative_features_from_shap = sorted([(f, w) for f, w in shap_dict.items() if w < 0], key=lambda i: i[1])
-    positive_features = [(f, w) for f, w in positive_features_from_shap]
-    negative_features = [(f, w) for f, w in negative_features_from_shap]
-    local_factors_for_prompt = {
-        'positive': [(f'{feat}', val) for feat, val in positive_features_from_shap],
-        'negative': [(f'{feat}', val) for feat, val in negative_features_from_shap]
-    }
-    
-        # Integrasi AI
-    if client:
-        if st.button("🤖 Buat Analisis Naratif dengan AI", key=f"ai_{instance_idx}"):
-            with st.spinner("🧠 AI sedang menyusun laporan..."):
-                shap_analysis = st.session_state.get('shap_analysis_summary')
-                prompt = build_ai_prompt(selected_region, selected_year, selected_quarter, predicted_risk,
-                                             positive_features, negative_features, shap_analysis)
-                narrative = generate_narrative_explanation(client, prompt)
-                st.session_state[f'narrative_{instance_idx}'] = narrative
+        col_lime1, col_lime2 = st.columns(2)
+        with col_lime1:
+            st.markdown("**🔴 Faktor Peningkat Risiko (Lokal)**")
+            for feature, weight in positive_features:
+                st.markdown(f'<div class="risk-increasing"><strong>{feature}</strong><br/>Dampak: <strong>+{weight:.3f}</strong></div>', unsafe_allow_html=True)
+        with col_lime2:
+            st.markdown("**🟢 Faktor Penurun Risiko (Lokal)**")
+            for feature, weight in negative_features:
+                st.markdown(f'<div class="risk-decreasing"><strong>{feature}</strong><br/>Dampak: <strong>{weight:.3f}</strong></div>', unsafe_allow_html=True)
     else:
-        # Fallback jika LIME gagal
-        st.warning("LIME gagal, analisis AI akan menggunakan perbandingan data mentah dengan median.")
-        instance_data = X.loc[instance_idx]
-        median_values = X.median()
-        diffs = (instance_data - median_values) / median_values
-        
-        positive_features = sorted([(f, v) for f, v in diffs.items() if v > 0], key=lambda i: i[1], reverse=True)
-        negative_features = sorted([(f, v) for f, v in diffs.items() if v < 0], key=lambda i: i[1])
+        st.warning("Gagal menghasilkan penjelasan visual LIME untuk instance ini.", icon="⚠️")
 
-        if client:
-             if st.button("🤖 Buat Analisis Naratif dengan AI (Fallback)", key=f"ai_fallback_{instance_idx}"):
-                with st.spinner("🧠 AI sedang menyusun laporan..."):
-                    shap_analysis = st.session_state.get('shap_analysis_summary')
-                    prompt = build_ai_prompt(selected_region, selected_year, selected_quarter, predicted_risk,
-                                             positive_features, negative_features, shap_analysis, st.session_state.analysis_language, lime_failed=True)
-                    narrative = generate_narrative_explanation(client, prompt)
-                    st.session_state[f'narrative_{instance_idx}'] = narrative
+    # --- 2. Bagian Analisis AI (Dipicu oleh Tombol Terpisah) ---
+    st.markdown("---")
+    st.markdown("#### Analisis Strategis & Rekomendasi Kebijakan AI")
+    
+    narrative_key = f'narrative_{instance_idx}'
 
-    if f'narrative_{instance_idx}' in st.session_state:
-        st.markdown("---")
-        st.markdown("### 💡 Laporan Analisis AI")
-        st.markdown(st.session_state[f'narrative_{instance_idx}'])
+    if st.button("🤖 Buat Analisis Mendalam dengan AI", key=f"ai_btn_{instance_idx}"):
+        with st.spinner("🧠 AI sedang menyusun laporan strategis..."):
+            # Ambil data SHAP Global dari session state
+            global_factors = st.session_state.shap_analysis_summary
+            
+            # Ambil data SHAP Instance spesifik
+            instance_shap_values = shap_values.values[instance_idx]
+            feature_names = shap_values.feature_names
+            instance_shap_dict = dict(zip(feature_names, instance_shap_values))
+            instance_shap_factors = {
+                'positive': {k: v for k, v in instance_shap_dict.items() if v > 0},
+                'negative': {k: v for k, v in instance_shap_dict.items() if v < 0}
+            }
+            
+            # Siapkan data LIME untuk prompt
+            local_factors_from_lime = {}
+            if lime_exp:
+                exp_list = lime_exp.as_list()
+                local_factors_from_lime = {
+                    'positive': sorted([(f, w) for f, w in exp_list if w > 0], key=lambda i: i[1], reverse=True),
+                    'negative': sorted([(f, w) for f, w in exp_list if w < 0], key=lambda i: i[1])
+                }
+
+            # Panggil prompt dengan SEMUA data yang relevan
+            prompt = build_ai_prompt(
+                region=selected_region,
+                year=selected_year,
+                quarter=selected_quarter,
+                risk_score=predicted_risk,
+                local_factors=local_factors_from_lime,
+                global_factors=global_factors,
+                instance_shap_factors=instance_shap_factors
+            )
+            
+            narrative = generate_narrative_explanation(client, prompt)
+            st.session_state[narrative_key] = narrative
+
+    # Tampilkan narasi jika sudah digenerate dan tersimpan di session state
+    if narrative_key in st.session_state:
+        st.markdown(st.session_state[narrative_key])
 
 # ======================================================================================
 # FUNGSI UTAMA (MAIN)
